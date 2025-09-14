@@ -1,0 +1,30 @@
+Buscador_de_informacion/
+│── main.py              <-- tu entrada principal, lo adaptaremos para FastAPI
+│── conector_bd.py
+│── conector_sheets.py
+│── motor_busqueda.py
+│── config.py
+│── interfaz.py
+│── requirements.txt     <-- nuevo
+│── Procfile             <-- nuevo
+│── render.yaml          <-- nuevo
+│── config/
+    └── credentials.json
+
+
+
+🚀 Estrategia recomendada
+
+Paso 1 (lo más difícil): ya ejecutado
+Configurar acceso a Google Sheets desde un script en local (con credenciales de servicio).
+Así validamos que podemos leer la hoja Bases POP y Directorio en tu PC.
+
+Paso 2: En proceso
+Subir ese mismo script como FastAPI a Render.
+Hacemos que responda algo básico como "Hola, FastAPI en la nube".
+
+Paso 3:
+Integrar la lógica real (Polars + búsqueda POP).
+
+Paso 4:
+Probar desde tu PC y que tus compañeros puedan entrar a la URL pública en Render.
