@@ -3,8 +3,6 @@ uvicorn
 gspread
 google-auth
 pandas
-<<<<<<< HEAD
 jinja2
-=======
-jinja2
->>>>>>> e297cd8ca225aaa4279ceb959868cffa852ee34a
+
+
