@@ -3,3 +3,4 @@ uvicorn
 gspread
 google-auth
 pandas
+jinja2
