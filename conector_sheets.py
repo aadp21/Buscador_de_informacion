@@ -12,7 +12,7 @@ def conectar_sheets():
     if not creds_json:
         raise ValueError("La variable de entorno GOOGLE_CREDENTIALS no está configurada en Render.")
     
-    creds_dict = json.loads(creds_json)
+    creds_dict = json.loads(creds_json)  # convertir string JSON en dict
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     client = gspread.authorize(creds)
     return client
@@ -45,13 +45,10 @@ def leer_hoja(sheet_id: str, nombre_hoja: str) -> pd.DataFrame:
     headers = dedup_headers(headers)
     n_cols = len(headers)
 
-    # Normalizar filas
+    # Normalizar filas: recortar o rellenar según número de columnas
     normalized_rows = [row[:n_cols] + [""] * (n_cols - len(row)) for row in data_rows]
 
     df = pd.DataFrame(normalized_rows, columns=headers)
     df.replace(["", "-"], pd.NA, inplace=True)
 
     return df
-
-
-
