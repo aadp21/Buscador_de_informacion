@@ -13,6 +13,7 @@ def raiz():
 
 @app.get("/test-credentials")
 def test_credentials():
+    """Verifica que las credenciales de Google estén bien cargadas en Render"""
     creds_json = os.getenv("GOOGLE_CREDENTIALS")
     if creds_json:
         try:
@@ -22,3 +23,9 @@ def test_credentials():
             return {"status": "ERROR ❌", "detalle": str(e)}
     else:
         return {"status": "NO ENCONTRADO ❌"}
+
+@app.get("/pop")
+def obtener_pop():
+    """Devuelve los primeros 10 registros de la hoja Bases POP"""
+    df = leer_hoja(SHEET_ID, "Bases POP")
+    return df.head(10).to_dict(orient="records")
