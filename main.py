@@ -1,3 +1,12 @@
+import os
+import json
+from fastapi import FastAPI
+from conector_sheets import leer_hoja
+
+SHEET_ID = "18e8Bfx5U1XLar7DOQ7PSVO5nQzluqKBHaxSOfRcreRI"
+
+app = FastAPI()
+
 @app.get("/pop")
 def obtener_pop():
     try:
