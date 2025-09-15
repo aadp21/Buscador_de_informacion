@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Buscador POP</title>
+</head>
+<body>
+    <h1>Buscador de POP</h1>
+    <form method="get" action="/buscar">
+        <label for="codigo">Ingrese código POP:</label>
+        <input type="text" id="codigo" name="codigo" required>
+        <button type="submit">Buscar</button>
+    </form>
+
+    {% if codigo %}
+        <h2>Resultados para POP: {{ codigo }}</h2>
+
+        <h3>Bases POP</h3>
+        {% if bases_result %}
+            <table border="1">
+                <tr>
+                    {% for key in bases_result[0].keys() %}
+                        <th>{{ key }}</th>
+                    {% endfor %}
+                </tr>
+                {% for row in bases_result %}
+                    <tr>
+                        {% for val in row.values() %}
+                            <td>{{ val }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p>No se encontraron resultados en Bases POP.</p>
+        {% endif %}
+
+        <h3>Directorio</h3>
+        {% if directorio_result %}
+            <table border="1">
+                <tr>
+                    {% for key in directorio_result[0].keys() %}
+                        <th>{{ key }}</th>
+                    {% endfor %}
+                </tr>
+                {% for row in directorio_result %}
+                    <tr>
+                        {% for val in row.values() %}
+                            <td>{{ val }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p>No se encontraron resultados en Directorio.</p>
+        {% endif %}
+    {% endif %}
+</body>
+</html>
