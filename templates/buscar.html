@@ -3,57 +3,330 @@
 <head>
     <meta charset="UTF-8">
     <title>Buscador POP</title>
+<style>
+  body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      color: #2d3436;
+      margin-left: 1cm;
+      margin-right: auto;
+      text-align: left;
+  }
+
+  h1 {
+      color: #0984e3;
+      font-size: 1.5em;
+      margin: 20px 0;
+  }
+
+  form {
+      margin: 10px 0 20px 0;
+      text-align: left;
+  }
+
+  form label {
+      font-size: 0.9em;
+      font-weight: bold;
+  }
+
+  input, button {
+      padding: 6px 10px;
+      margin: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 0.9em;
+      text-align: left;
+  }
+
+  button {
+      background: #0984e3;
+      color: white;
+      border: none;
+      cursor: pointer;
+  }
+
+  button:hover {
+      background: #74b9ff;
+  }
+
+  .tabla-container {
+      width: 100%;
+      overflow-x: auto;
+  }
+
+  .tabla {
+      width: 70%;
+      margin: 10px 0 20px 0;
+      border-collapse: collapse;
+      background: #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      border-radius: 6px;
+      font-size: 0.85em;
+      text-align: left;
+      min-width: 500px;
+  }
+
+  .tabla th {
+      background: #0984e3;
+      color: white;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      font-weight: bold;
+      text-align: left;
+  }
+
+  .tabla td {
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      vertical-align: top;
+      text-align: left;
+
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 220px;
+  }
+
+  .tabla tr:nth-child(even) td {
+      background: #f9f9f9;
+  }
+
+  .tabla tr:hover td {
+      background: #f1faff;
+  }
+
+  /* 🔹 Estilo colapsable */
+  .collapsible {
+      background: #0984e3;
+      color: white;
+      cursor: pointer;
+      padding: 10px;
+      width: 70%;
+      border: none;
+      text-align: left;
+      outline: none;
+      font-size: 1em;
+      margin-top: 15px;
+      border-radius: 6px;
+  }
+
+  .collapsible:hover {
+      background: #74b9ff;
+  }
+
+  .content {
+      display: none;
+      margin-bottom: 20px;
+  }
+
+  @media screen and (max-width: 768px) {
+      body {
+          margin-left: 10px;
+          margin-right: 10px;
+      }
+      .tabla, .collapsible {
+          width: 100%;
+          font-size: 0.8em;
+      }
+  }
+</style>
 </head>
 <body>
     <h1>Buscador de POP</h1>
+
     <form method="get" action="/buscar">
         <label for="codigo">Ingrese código POP:</label>
         <input type="text" id="codigo" name="codigo" required>
         <button type="submit">Buscar</button>
     </form>
 
-    {% if codigo %}
-        <h2>Resultados para POP: {{ codigo }}</h2>
-
-        <h3>Bases POP</h3>
-        {% if bases_result %}
-            <table border="1">
+    {% if bases_result or directorio_result %}
+        <h3>Resultados Comparados</h3>
+        <div class="tabla-container">
+            <table class="tabla">
                 <tr>
-                    {% for key in bases_result[0].keys() %}
-                        <th>{{ key }}</th>
-                    {% endfor %}
+                    <th>Campo</th>
+                    <th>Bases POP</th>
+                    <th>Directorio</th>
                 </tr>
-                {% for row in bases_result %}
-                    <tr>
-                        {% for val in row.values() %}
-                            <td>{{ val }}</td>
+                {% set campos = [] %}
+                {% if bases_result %}
+                    {% for row in bases_result %}
+                        {% for key in row.keys() %}
+                            {% if key not in campos %}
+                                {% set _ = campos.append(key) %}
+                            {% endif %}
                         {% endfor %}
-                    </tr>
+                    {% endfor %}
+                {% endif %}
+                {% if directorio_result %}
+                    {% for row in directorio_result %}
+                        {% for key in row.keys() %}
+                            {% if key not in campos %}
+                                {% set _ = campos.append(key) %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                {% endif %}
+
+                {% for campo in campos %}
+                <tr>
+                    <th>{{ campo }}</th>
+                    <td>
+                        {% if bases_result %}
+                            {% for row in bases_result %}
+                                {{ row.get(campo, "") }}
+                            {% endfor %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if directorio_result %}
+                            {% for row in directorio_result %}
+                                {{ row.get(campo, "") }}
+                            {% endfor %}
+                        {% endif %}
+                    </td>
+                </tr>
                 {% endfor %}
             </table>
-        {% else %}
-            <p>No se encontraron resultados en Bases POP.</p>
-        {% endif %}
-
-        <h3>Directorio</h3>
-        {% if directorio_result %}
-            <table border="1">
-                <tr>
-                    {% for key in directorio_result[0].keys() %}
-                        <th>{{ key }}</th>
-                    {% endfor %}
-                </tr>
-                {% for row in directorio_result %}
-                    <tr>
-                        {% for val in row.values() %}
-                            <td>{{ val }}</td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-            </table>
-        {% else %}
-            <p>No se encontraron resultados en Directorio.</p>
-        {% endif %}
+        </div>
     {% endif %}
+
+    {% if hardware_result %}
+        <button class="collapsible">Base Hardware</button>
+        <div class="content">
+            <div class="tabla-container">
+                <table class="tabla">
+                    <tr>
+                        {% for key in hardware_result[0].keys() %}
+                            <th>{{ key }}</th>
+                        {% endfor %}
+                    </tr>
+                    {% for row in hardware_result %}
+                    <tr>
+                        {% for value in row.values() %}
+                            <td title="{{ value }}">{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if export_5g_result %}
+        <button class="collapsible">Export 5G</button>
+        <div class="content">
+            <div class="tabla-container">
+                <table class="tabla">
+                    <tr>
+                        {% for key in export_5g_result[0].keys() %}
+                            <th>{{ key }}</th>
+                        {% endfor %}
+                    </tr>
+                    {% for row in export_5g_result %}
+                    <tr>
+                        {% for value in row.values() %}
+                            <td title="{{ value }}">{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if export_4g_result %}
+        <button class="collapsible">Export 4G</button>
+        <div class="content">
+            <div class="tabla-container">
+                <table class="tabla">
+                    <tr>
+                        {% for key in export_4g_result[0].keys() %}
+                            <th>{{ key }}</th>
+                        {% endfor %}
+                    </tr>
+                    {% for row in export_4g_result %}
+                    <tr>
+                        {% for value in row.values() %}
+                            <td title="{{ value }}">{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if export_3g_result %}
+        <button class="collapsible">Export 3G</button>
+        <div class="content">
+            <div class="tabla-container">
+                <table class="tabla">
+                    <tr>
+                        {% for key in export_3g_result[0].keys() %}
+                            <th>{{ key }}</th>
+                        {% endfor %}
+                    </tr>
+                    {% for row in export_3g_result %}
+                    <tr>
+                        {% for value in row.values() %}
+                            <td title="{{ value }}">{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if export_2g_result %}
+        <button class="collapsible">Export 2G</button>
+        <div class="content">
+            <div class="tabla-container">
+                <table class="tabla">
+                    <tr>
+                        {% for key in export_2g_result[0].keys() %}
+                            <th>{{ key }}</th>
+                        {% endfor %}
+                    </tr>
+                    {% for row in export_2g_result %}
+                    <tr>
+                        {% for value in row.values() %}
+                            <td title="{{ value }}">{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if not bases_result and not directorio_result and not hardware_result
+          and not export_5g_result and not export_4g_result and not export_3g_result and not export_2g_result %}
+        <p>No se encontraron resultados.</p>
+    {% endif %}
+
+    {% if error %}
+        <p style="color:red;">Error: {{ error }}</p>
+    {% endif %}
+
+<script>
+    // Script para colapsar/expandir
+    document.addEventListener("DOMContentLoaded", function() {
+        var coll = document.getElementsByClassName("collapsible");
+        for (var i = 0; i < coll.length; i++) {
+            coll[i].addEventListener("click", function() {
+                this.classList.toggle("active");
+                var content = this.nextElementSibling;
+                if (content.style.display === "block") {
+                    content.style.display = "none";
+                } else {
+                    content.style.display = "block";
+                }
+            });
+        }
+    });
+</script>
 </body>
 </html>
