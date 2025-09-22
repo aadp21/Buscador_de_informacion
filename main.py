@@ -12,7 +12,7 @@ app = FastAPI()
 # -----------------------------
 # Configuración de cache
 # -----------------------------
-CACHE_TIMEOUT = 806400  # segundos (10 minutos)
+CACHE_TIMEOUT = 86400  # segundos (24 horas)
 data_cache = {}
 last_update = {}
 
@@ -130,7 +130,7 @@ def buscar_pop(request: Request, codigo: str = None):
         columnas_directorio = [
             "POP","Nombre","Latitud","Longitud","Comuna","Región",
             "Tipo FDT","Tipo LLOO","Tipo","Soluc. Esp","Detalle Infra ((28-12-2021))",
-            "Tecnologías Totales Fin proyecto 2025","CLASS 1","CLASS 2","CLASS 3"
+            "Tecnologías Totales Fin proyecto 2025","Plan","CATEGORIA 1","CATEGORIA 2"
         ]
         if "POP" in df_directorio.columns:
             mask_dir = df_directorio["POP"].astype(str).str.upper().str.strip() == codigo.upper().strip()
@@ -140,6 +140,10 @@ def buscar_pop(request: Request, codigo: str = None):
                              .fillna("")
                              .to_dict(orient="records")
             )
+
+        # --- PROYECTO RANCO ---
+        df_ranco = get_data("Proyecto_RANCO")
+        proyecto_ranco_result = filtrar_por_pop(df_ranco, codigo)
 
         # --- BASE HARDWARE ---
         df_hardware = get_data("Base Hardware")
@@ -164,6 +168,7 @@ def buscar_pop(request: Request, codigo: str = None):
     except Exception as e:
         error = str(e)
 
+
     return templates.TemplateResponse(
         "buscar.html",
         {
@@ -171,6 +176,7 @@ def buscar_pop(request: Request, codigo: str = None):
             "codigo": codigo,
             "bases_result": bases_result,
             "directorio_result": directorio_result,
+            "proyecto_ranco_result": proyecto_ranco_result,  # 👈 nuevo
             "hardware_result": hardware_result,
             "export_5g_result": export_5g_result,
             "export_4g_result": export_4g_result,
