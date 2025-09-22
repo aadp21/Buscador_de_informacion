@@ -12,7 +12,7 @@ app = FastAPI()
 # -----------------------------
 # Función auxiliar robusta
 # -----------------------------
-def filtrar_por_pop(df, codigo: str):
+def filtrar_por_pop(df, codigo: str, excluir=None):
     df = df.copy()
     # Normalizar nombres de columnas
     df.columns = [c.upper().strip() for c in df.columns]
@@ -23,21 +23,20 @@ def filtrar_por_pop(df, codigo: str):
         print("⚠️ No se encontró columna con 'POP' en:", df.columns.tolist())
         return []
 
-    # Debug de los primeros valores
-    print(f"📋 Hoja columnas: {df.columns.tolist()}")
-    print(f"🔎 Primeros valores en {col_pop}: {df[col_pop].head(5).tolist()}")
-
-    # Filtro
+    # Filtro por POP
     mask = df[col_pop].astype(str).str.upper().str.strip() == codigo.upper().strip()
-    filtrado = (
-        df.loc[mask, df.columns]
-          .replace({r"\n": " "}, regex=True)
-          .fillna("")
-          .to_dict(orient="records")
-    )
+    df_filtrado = df.loc[mask, df.columns]
 
-    print(f"✅ Filtrados {len(filtrado)} registros para POP={codigo}")
-    return filtrado
+    # Excluir columnas si corresponde
+    if excluir:
+        excluir_upper = [c.upper() for c in excluir]
+        df_filtrado = df_filtrado[[c for c in df_filtrado.columns if c not in excluir_upper]]
+
+    return (
+        df_filtrado.replace({r"\n": " "}, regex=True)
+                   .fillna("")
+                   .to_dict(orient="records")
+    )
 
 
 # -----------------------------
@@ -91,21 +90,21 @@ def buscar_pop(request: Request, codigo: str = None):
             df_hardware = leer_hoja(SHEET_ID, "Base Hardware")
             hardware_result = filtrar_por_pop(df_hardware, codigo)
 
-            # --- EXPORT 5G ---
+            # --- EXPORT 5G (excluir nRSectorCarrierRef) ---
             df_5g = leer_hoja(SHEET_ID, "Export_5G")
-            export_5g_result = filtrar_por_pop(df_5g, codigo)
+            export_5g_result = filtrar_por_pop(df_5g, codigo, excluir=["nRSectorCarrierRef"])
 
-            # --- EXPORT 4G ---
+            # --- EXPORT 4G (excluir latitud, longitud, Region) ---
             df_4g = leer_hoja(SHEET_ID, "Export_4G")
-            export_4g_result = filtrar_por_pop(df_4g, codigo)
+            export_4g_result = filtrar_por_pop(df_4g, codigo, excluir=["latitud", "longitud", "Region"])
 
-            # --- EXPORT 3G ---
+            # --- EXPORT 3G (excluir latitude, longitude, Región) ---
             df_3g = leer_hoja(SHEET_ID, "Export_3G")
-            export_3g_result = filtrar_por_pop(df_3g, codigo)
+            export_3g_result = filtrar_por_pop(df_3g, codigo, excluir=["latitude", "longitude", "Región"])
 
-            # --- EXPORT 2G ---
+            # --- EXPORT 2G (excluir Latitude, Longitude) ---
             df_2g = leer_hoja(SHEET_ID, "Export_2G")
-            export_2g_result = filtrar_por_pop(df_2g, codigo)
+            export_2g_result = filtrar_por_pop(df_2g, codigo, excluir=["Latitude", "Longitude"])
 
         except Exception as e:
             error = str(e)
@@ -125,3 +124,4 @@ def buscar_pop(request: Request, codigo: str = None):
             "error": error,
         }
     )
+

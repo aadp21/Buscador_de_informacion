@@ -95,7 +95,6 @@
       background: #f1faff;
   }
 
-  /* 🔹 Estilo colapsable */
   .collapsible {
       background: #0984e3;
       color: white;
@@ -192,115 +191,35 @@
         </div>
     {% endif %}
 
-    {% if hardware_result %}
-        <button class="collapsible">Base Hardware</button>
-        <div class="content">
-            <div class="tabla-container">
-                <table class="tabla">
-                    <tr>
-                        {% for key in hardware_result[0].keys() %}
-                            <th>{{ key }}</th>
+    {% macro render_table(title, data) %}
+        {% if data %}
+            <button class="collapsible">{{ title }}</button>
+            <div class="content">
+                <div class="tabla-container">
+                    <table class="tabla">
+                        <tr>
+                            {% for key in data[0].keys() %}
+                                <th>{{ key }}</th>
+                            {% endfor %}
+                        </tr>
+                        {% for row in data %}
+                        <tr>
+                            {% for value in row.values() %}
+                                <td title="{{ value }}">{{ value }}</td>
+                            {% endfor %}
+                        </tr>
                         {% endfor %}
-                    </tr>
-                    {% for row in hardware_result %}
-                    <tr>
-                        {% for value in row.values() %}
-                            <td title="{{ value }}">{{ value }}</td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </table>
+                    </table>
+                </div>
             </div>
-        </div>
-    {% endif %}
+        {% endif %}
+    {% endmacro %}
 
-    {% if export_5g_result %}
-        <button class="collapsible">Export 5G</button>
-        <div class="content">
-            <div class="tabla-container">
-                <table class="tabla">
-                    <tr>
-                        {% for key in export_5g_result[0].keys() %}
-                            <th>{{ key }}</th>
-                        {% endfor %}
-                    </tr>
-                    {% for row in export_5g_result %}
-                    <tr>
-                        {% for value in row.values() %}
-                            <td title="{{ value }}">{{ value }}</td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-    {% endif %}
-
-    {% if export_4g_result %}
-        <button class="collapsible">Export 4G</button>
-        <div class="content">
-            <div class="tabla-container">
-                <table class="tabla">
-                    <tr>
-                        {% for key in export_4g_result[0].keys() %}
-                            <th>{{ key }}</th>
-                        {% endfor %}
-                    </tr>
-                    {% for row in export_4g_result %}
-                    <tr>
-                        {% for value in row.values() %}
-                            <td title="{{ value }}">{{ value }}</td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-    {% endif %}
-
-    {% if export_3g_result %}
-        <button class="collapsible">Export 3G</button>
-        <div class="content">
-            <div class="tabla-container">
-                <table class="tabla">
-                    <tr>
-                        {% for key in export_3g_result[0].keys() %}
-                            <th>{{ key }}</th>
-                        {% endfor %}
-                    </tr>
-                    {% for row in export_3g_result %}
-                    <tr>
-                        {% for value in row.values() %}
-                            <td title="{{ value }}">{{ value }}</td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-    {% endif %}
-
-    {% if export_2g_result %}
-        <button class="collapsible">Export 2G</button>
-        <div class="content">
-            <div class="tabla-container">
-                <table class="tabla">
-                    <tr>
-                        {% for key in export_2g_result[0].keys() %}
-                            <th>{{ key }}</th>
-                        {% endfor %}
-                    </tr>
-                    {% for row in export_2g_result %}
-                    <tr>
-                        {% for value in row.values() %}
-                            <td title="{{ value }}">{{ value }}</td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </table>
-            </div>
-        </div>
-    {% endif %}
+    {{ render_table("Base Hardware", hardware_result) }}
+    {{ render_table("Export 5G", export_5g_result) }}
+    {{ render_table("Export 4G", export_4g_result) }}
+    {{ render_table("Export 3G", export_3g_result) }}
+    {{ render_table("Export 2G", export_2g_result) }}
 
     {% if not bases_result and not directorio_result and not hardware_result
           and not export_5g_result and not export_4g_result and not export_3g_result and not export_2g_result %}
@@ -312,7 +231,6 @@
     {% endif %}
 
 <script>
-    // Script para colapsar/expandir
     document.addEventListener("DOMContentLoaded", function() {
         var coll = document.getElementsByClassName("collapsible");
         for (var i = 0; i < coll.length; i++) {
