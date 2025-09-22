@@ -2,11 +2,34 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from conector_sheets import leer_hoja
+import time
 
 SHEET_ID = "18e8Bfx5U1XLar7DOQ7PSVO5nQzluqKBHaxSOfRcreRI"
 templates = Jinja2Templates(directory="templates")
 
 app = FastAPI()
+
+# -----------------------------
+# Configuración de cache
+# -----------------------------
+CACHE_TIMEOUT = 600  # segundos (10 minutos)
+data_cache = {}
+last_update = {}
+
+
+def get_data(sheet_name: str):
+    """Devuelve el DataFrame desde cache, si está fresco, o lo recarga de Google Sheets."""
+    now = time.time()
+    if (
+        sheet_name not in data_cache
+        or sheet_name not in last_update
+        or (now - last_update[sheet_name]) > CACHE_TIMEOUT
+    ):
+        print(f"♻️ Recargando hoja: {sheet_name}")
+        df = leer_hoja(SHEET_ID, sheet_name)
+        data_cache[sheet_name] = df
+        last_update[sheet_name] = now
+    return data_cache[sheet_name]
 
 
 # -----------------------------
@@ -43,7 +66,6 @@ def filtrar_por_pop(df, codigo: str, excluir=None):
 async def block_unwanted_methods(request: Request, call_next):
     if request.method in ("HEAD", "OPTIONS"):
         return JSONResponse(content={"status": "ok"}, status_code=200)
-
     response = await call_next(request)
     return response
 
@@ -61,8 +83,7 @@ async def root():
 # -----------------------------
 @app.get("/buscar", response_class=HTMLResponse)
 def buscar_pop(request: Request, codigo: str = None):
-    # 🔹 Si no hay código, devolvemos página limpia
-    if not codigo:
+    if not codigo:  # Si no hay código, devolvemos página vacía
         return templates.TemplateResponse(
             "buscar.html",
             {
@@ -85,7 +106,7 @@ def buscar_pop(request: Request, codigo: str = None):
 
     try:
         # --- BASES POP (solo columnas definidas) ---
-        df_bases = leer_hoja(SHEET_ID, "Bases POP")
+        df_bases = get_data("Bases POP")
         df_bases.columns = [c.strip() for c in df_bases.columns]
         columnas_bases = [
             "POP","Nombre","Latitud","Longitud","Comuna","Región",
@@ -104,7 +125,7 @@ def buscar_pop(request: Request, codigo: str = None):
             )
 
         # --- DIRECTORIO (solo columnas definidas) ---
-        df_directorio = leer_hoja(SHEET_ID, "Directorio")
+        df_directorio = get_data("Directorio")
         df_directorio.columns = [c.strip() for c in df_directorio.columns]
         columnas_directorio = [
             "POP","Nombre","Latitud","Longitud","Comuna","Región",
@@ -121,23 +142,23 @@ def buscar_pop(request: Request, codigo: str = None):
             )
 
         # --- BASE HARDWARE ---
-        df_hardware = leer_hoja(SHEET_ID, "Base Hardware")
+        df_hardware = get_data("Base Hardware")
         hardware_result = filtrar_por_pop(df_hardware, codigo)
 
         # --- EXPORT 5G (excluir nRSectorCarrierRef) ---
-        df_5g = leer_hoja(SHEET_ID, "Export_5G")
+        df_5g = get_data("Export_5G")
         export_5g_result = filtrar_por_pop(df_5g, codigo, excluir=["nRSectorCarrierRef"])
 
         # --- EXPORT 4G (excluir latitud, longitud, Region) ---
-        df_4g = leer_hoja(SHEET_ID, "Export_4G")
+        df_4g = get_data("Export_4G")
         export_4g_result = filtrar_por_pop(df_4g, codigo, excluir=["latitud", "longitud", "Region"])
 
         # --- EXPORT 3G (excluir latitude, longitude, Región) ---
-        df_3g = leer_hoja(SHEET_ID, "Export_3G")
+        df_3g = get_data("Export_3G")
         export_3g_result = filtrar_por_pop(df_3g, codigo, excluir=["latitude", "longitude", "Región"])
 
         # --- EXPORT 2G (excluir Latitude, Longitude) ---
-        df_2g = leer_hoja(SHEET_ID, "Export_2G")
+        df_2g = get_data("Export_2G")
         export_2g_result = filtrar_por_pop(df_2g, codigo, excluir=["Latitude", "Longitude"])
 
     except Exception as e:
@@ -158,4 +179,5 @@ def buscar_pop(request: Request, codigo: str = None):
             "error": error,
         }
     )
+
 
