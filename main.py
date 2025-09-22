@@ -12,7 +12,7 @@ app = FastAPI()
 # -----------------------------
 # Configuración de cache
 # -----------------------------
-CACHE_TIMEOUT = 600  # segundos (10 minutos)
+CACHE_TIMEOUT = 806400  # segundos (10 minutos)
 data_cache = {}
 last_update = {}
 
