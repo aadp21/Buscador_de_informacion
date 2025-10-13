@@ -1,7 +1,10 @@
 fastapi
 uvicorn
 gspread
+gspread-dataframe
 google-auth
 pandas
 jinja2
+python-multipart
+openpyxl
 
