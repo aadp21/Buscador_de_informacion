@@ -1,251 +1,214 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Buscador POP</title>
-<style>
-  body {
-      font-family: Arial, sans-serif;
-      background: #f5f6fa;
-      color: #2d3436;
-      margin-left: 1cm;
-      margin-right: auto;
-      text-align: left;
-  }
+  <meta charset="UTF-8">
+  <title>Buscador POP</title>
 
-  h1 {
-      color: #0984e3;
-      font-size: 1.5em;
-      margin: 20px 0;
-  }
+  <style>
+    /* ===== Base ===== */
+    body{font-family:Arial,sans-serif;background:#f5f6fa;color:#2d3436;margin-left:1cm;margin-right:auto;text-align:left}
+    h1{color:#0984e3;font-size:1.5em;margin:20px 0}
+    form{margin:10px 0 20px;text-align:left}
+    form label{font-size:.9em;font-weight:bold}
+    input,button{padding:6px 10px;margin:5px;border-radius:5px;border:1px solid #ccc;font-size:.9em;text-align:left}
+    button{background:#0984e3;color:#fff;border:none;cursor:pointer}
+    button:hover{background:#74b9ff}
 
-  form {
-      margin: 10px 0 20px 0;
-      text-align: left;
-  }
+    /* ===== Tablas ===== */
+    .tabla-container{width:100%;overflow-x:auto}
+    .tabla{
+      width:70%;
+      margin:10px 0 20px;
+      border-collapse:collapse;
+      background:#fff;
+      box-shadow:0 2px 6px rgba(0,0,0,.1);
+      border-radius:6px;
+      font-size:.85em;
+      text-align:left;
+      min-width:500px;
+    }
+    .tabla th{
+      background:#0984e3;color:#fff;
+      padding:8px 12px;border:1px solid #ddd;
+      font-weight:bold;text-align:left
+    }
+    .tabla td{
+      padding:6px 10px;border:1px solid #ddd;
+      vertical-align:top;text-align:left;
+      /* truncado por defecto para todas las tablas */
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px
+    }
+    .tabla tr:nth-child(even) td{background:#f9f9f9}
+    .tabla tr:hover td{background:#f1faff}
 
-  form label {
-      font-size: 0.9em;
-      font-weight: bold;
-  }
+    /* ===== Collapsibles ===== */
+    .collapsible{
+      background:#0984e3;color:#fff;cursor:pointer;
+      padding:10px;width:70%;border:none;text-align:left;
+      outline:none;font-size:1em;margin-top:15px;border-radius:6px
+    }
+    .collapsible:hover{background:#74b9ff}
+    .content{display:none;margin-bottom:20px}
 
-  input, button {
-      padding: 6px 10px;
-      margin: 5px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      font-size: 0.9em;
-      text-align: left;
-  }
+    /* ===== SOLO Proyecto RANCO ===== */
+    .tabla-ranco{table-layout:fixed;width:100%}
+    .tabla-ranco th,.tabla-ranco td{
+      /* anula truncado: permite múltiples líneas y cortes amigables */
+      white-space:normal !important;
+      overflow:visible;
+      text-overflow:clip;
+      max-width:none;
+      word-break:break-word;
+    }
+    /* CATEGORIA 2 = 5ta columna (ajusta ancho si quieres) */
+    .tabla-ranco th:nth-child(5), .tabla-ranco td:nth-child(5){width:340px}
 
-  button {
-      background: #0984e3;
-      color: white;
-      border: none;
-      cursor: pointer;
-  }
+    /* ===== Responsive ===== */
+    @media (max-width:768px){
+      body{margin-left:10px;margin-right:10px}
+      .tabla,.collapsible{width:100%;font-size:.8em}
+    }
 
-  button:hover {
-      background: #74b9ff;
-  }
-
-  .tabla-container {
-      width: 100%;
-      overflow-x: auto;
-  }
-
-  .tabla {
-      width: 70%;
-      margin: 10px 0 20px 0;
-      border-collapse: collapse;
-      background: #ffffff;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      border-radius: 6px;
-      font-size: 0.85em;
-      text-align: left;
-      min-width: 500px;
-  }
-
-  .tabla th {
-      background: #0984e3;
-      color: white;
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      font-weight: bold;
-      text-align: left;
-  }
-
-  .tabla td {
-      padding: 6px 10px;
-      border: 1px solid #ddd;
-      vertical-align: top;
-      text-align: left;
-
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 220px;
-  }
-
-  .tabla tr:nth-child(even) td {
-      background: #f9f9f9;
-  }
-
-  .tabla tr:hover td {
-      background: #f1faff;
-  }
-
-  .collapsible {
-      background: #0984e3;
-      color: white;
-      cursor: pointer;
-      padding: 10px;
-      width: 70%;
-      border: none;
-      text-align: left;
-      outline: none;
-      font-size: 1em;
-      margin-top: 15px;
-      border-radius: 6px;
-  }
-
-  .collapsible:hover {
-      background: #74b9ff;
-  }
-
-  .content {
-      display: none;
-      margin-bottom: 20px;
-  }
-
-  @media screen and (max-width: 768px) {
-      body {
-          margin-left: 10px;
-          margin-right: 10px;
-      }
-      .tabla, .collapsible {
-          width: 100%;
-          font-size: 0.8em;
-      }
-  }
-</style>
+    /* ===== Botón de descarga ===== */
+    .export-row{margin:16px 0 40px;clear:both;text-align:left}
+    .btn-download{
+      display:inline-block;background:#0984e3;color:#fff;
+      padding:8px 12px;border-radius:5px;text-decoration:none;
+      font-size:.9em;border:1px solid #0b74d1;cursor:pointer
+    }
+    .btn-download:hover{background:#74b9ff}
+  </style>
 </head>
+
 <body>
-    <h1>Buscador de POP</h1>
+  <h1>Buscador de POP</h1>
 
-    <form method="get" action="/buscar">
-        <label for="codigo">Ingrese código POP:</label>
-        <input type="text" id="codigo" name="codigo" required>
-        <button type="submit">Buscar</button>
-    </form>
+  <form method="get" action="/buscar">
+    <label for="codigo">Ingrese código POP:</label>
+    <input type="text" id="codigo" name="codigo" required>
+    <button type="submit">Buscar</button>
+  </form>
 
-    {% if bases_result or directorio_result %}
-        <h3>Resultados Comparados</h3>
-        <div class="tabla-container">
-            <table class="tabla">
-                <tr>
-                    <th>Campo</th>
-                    <th>Bases POP</th>
-                    <th>Directorio</th>
-                </tr>
-                {% set campos = [] %}
-                {% if bases_result %}
-                    {% for row in bases_result %}
-                        {% for key in row.keys() %}
-                            {% if key not in campos %}
-                                {% set _ = campos.append(key) %}
-                            {% endif %}
-                        {% endfor %}
-                    {% endfor %}
-                {% endif %}
-                {% if directorio_result %}
-                    {% for row in directorio_result %}
-                        {% for key in row.keys() %}
-                            {% if key not in campos %}
-                                {% set _ = campos.append(key) %}
-                            {% endif %}
-                        {% endfor %}
-                    {% endfor %}
-                {% endif %}
+  {% if bases_result or directorio_result %}
+    <h3>Resultados Comparados</h3>
+    <div class="tabla-container">
+      <table class="tabla">
+        <tr>
+          <th>Campo</th>
+          <th>Bases POP</th>
+          <th>Directorio</th>
+        </tr>
 
-                {% for campo in campos %}
-                <tr>
-                    <th>{{ campo }}</th>
-                    <td>
-                        {% if bases_result %}
-                            {% for row in bases_result %}
-                                {{ row.get(campo, "") }}
-                            {% endfor %}
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if directorio_result %}
-                            {% for row in directorio_result %}
-                                {{ row.get(campo, "") }}
-                            {% endfor %}
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-    {% endif %}
-
-    {% macro render_table(title, data) %}
-        {% if data %}
-            <button class="collapsible">{{ title }}</button>
-            <div class="content">
-                <div class="tabla-container">
-                    <table class="tabla">
-                        <tr>
-                            {% for key in data[0].keys() %}
-                                <th>{{ key }}</th>
-                            {% endfor %}
-                        </tr>
-                        {% for row in data %}
-                        <tr>
-                            {% for value in row.values() %}
-                                <td title="{{ value }}">{{ value }}</td>
-                            {% endfor %}
-                        </tr>
-                        {% endfor %}
-                    </table>
-                </div>
-            </div>
+        {# Construye listado de campos únicos #}
+        {% set campos = [] %}
+        {% if bases_result %}
+          {% for row in bases_result %}
+            {% for key in row.keys() %}
+              {% if key not in campos %}
+                {% set _ = campos.append(key) %}
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
         {% endif %}
-    {% endmacro %}
+        {% if directorio_result %}
+          {% for row in directorio_result %}
+            {% for key in row.keys() %}
+              {% if key not in campos %}
+                {% set _ = campos.append(key) %}
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+        {% endif %}
 
-    {{ render_table("Proyecto RANCO", proyecto_ranco_result) }}
-	{{ render_table("Base Hardware", hardware_result) }}
-    {{ render_table("Export 5G", export_5g_result) }}
-    {{ render_table("Export 4G", export_4g_result) }}
-    {{ render_table("Export 3G", export_3g_result) }}
-    {{ render_table("Export 2G", export_2g_result) }}
+        {# Filas comparativas #}
+        {% for campo in campos %}
+        <tr>
+          <th>{{ campo }}</th>
+          <td>
+            {% if bases_result %}
+              {% for row in bases_result %}
+                {{ row.get(campo, "") }}
+              {% endfor %}
+            {% endif %}
+          </td>
+          <td>
+            {% if directorio_result %}
+              {% for row in directorio_result %}
+                {{ row.get(campo, "") }}
+              {% endfor %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% endif %}
 
-    {% if not bases_result and not directorio_result and not hardware_result
-          and not export_5g_result and not export_4g_result and not export_3g_result and not export_2g_result %}
-        <p>No se encontraron resultados.</p>
+  {# Macro para tablas colapsables #}
+  {% macro render_table(title, data) %}
+    {% if data %}
+      <button class="collapsible">{{ title }}</button>
+      <div class="content">
+        <div class="tabla-container">
+          <table class="tabla {% if title == 'Proyecto RANCO' %}tabla-ranco{% endif %}">
+            <tr>
+              {% for key in data[0].keys() %}
+                <th>{{ key }}</th>
+              {% endfor %}
+            </tr>
+            {% for row in data %}
+              <tr>
+                {% for value in row.values() %}
+                  <td title="{{ value }}">{{ value }}</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </div>
     {% endif %}
+  {% endmacro %}
 
-    {% if error %}
-        <p style="color:red;">Error: {{ error }}</p>
-    {% endif %}
+  {{ render_table("Proyecto RANCO", proyecto_ranco_result) }}
+  {{ render_table("Base Hardware", hardware_result) }}
+  {{ render_table("Export 5G", export_5g_result) }}
+  {{ render_table("Export 4G", export_4g_result) }}
+  {{ render_table("Export 3G", export_3g_result) }}
+  {{ render_table("Export 2G", export_2g_result) }}
 
-<script>
+  {% if not bases_result and not directorio_result and not proyecto_ranco_result
+        and not hardware_result and not export_5g_result and not export_4g_result
+        and not export_3g_result and not export_2g_result %}
+    <p>No se encontraron resultados.</p>
+  {% endif %}
+
+  {% if error %}
+    <p style="color:red;">Error: {{ error }}</p>
+  {% endif %}
+
+  <script>
     document.addEventListener("DOMContentLoaded", function() {
-        var coll = document.getElementsByClassName("collapsible");
-        for (var i = 0; i < coll.length; i++) {
-            coll[i].addEventListener("click", function() {
-                this.classList.toggle("active");
-                var content = this.nextElementSibling;
-                if (content.style.display === "block") {
-                    content.style.display = "none";
-                } else {
-                    content.style.display = "block";
-                }
-            });
-        }
+      var coll = document.getElementsByClassName("collapsible");
+      for (var i = 0; i < coll.length; i++) {
+        coll[i].addEventListener("click", function() {
+          this.classList.toggle("active");
+          var content = this.nextElementSibling;
+          content.style.display = (content.style.display === "block") ? "none" : "block";
+        });
+      }
     });
-</script>
+  </script>
+
+  {% if codigo|default('')|trim %}
+    <div class="export-row">
+      <a class="btn-download"
+         href="{{ request.url_for('exportar_excel') }}?codigo={{ codigo|trim|urlencode }}">
+        Descargar Excel ({{ codigo|trim }})
+      </a>
+    </div>
+    <div style="margin:8px 0 12px;">
+    <a href="/carga" style="background:#0984e3;color:#fff;padding:8px 12px;border-radius:6px;text-decoration:none;">⚙️ Carga Bases y Export</a>
+  </div>
+  {% endif %}
 </body>
 </html>
