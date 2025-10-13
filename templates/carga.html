@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Carga de datos</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f5f6fa; color:#2d3436; padding:20px; }
+    h1 { color:#0984e3; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+    .card { background:#fff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); padding:16px; }
+    a.btn { display:inline-block; padding:10px 14px; background:#0984e3; color:#fff; text-decoration:none; border-radius:6px; }
+    a.btn:hover { background:#74b9ff; }
+    .topbar { margin-bottom:16px; }
+    .topbar a { margin-right:8px; }
+  </style>
+
+</head>
+<body>
+  <div class="topbar">
+    <a class="btn" href="/buscar">↩ Volver a Buscador</a>
+  </div>
+
+  <h1>Carga de datos</h1>
+  <p>Selecciona el bloque que deseas actualizar (se requiere archivo .xlsx):</p>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Bases POP</h3>
+      <p>Sube un Excel con columnas esperadas (mínimo POP).</p>
+      <a class="btn" href="/carga/bases">Ir a cargar</a>
+    </div>
+    <div class="card">
+      <h3>Directorio</h3>
+      <p>Sube un Excel con columnas esperadas (mínimo POP).</p>
+      <a class="btn" href="/carga/directorio">Ir a cargar</a>
+    </div>
+    <div class="card">
+      <h3>Base Hardware</h3>
+      <p>Sube un Excel con la estructura actual (mínimo POP).</p>
+      <a class="btn" href="/carga/hardware">Ir a cargar</a>
+    </div>
+    <div class="card">
+      <h3>Export</h3>
+      <p>Un Excel con hojas internas: Export_5G, Export_4G, Export_3G, Export_2G (todas con POP).</p>
+      <a class="btn" href="/carga/export">Ir a cargar</a>
+    </div>
+    <div class="card">
+      <h3>Proyecto_RANCO</h3>
+      <p>Sube un Excel con la estructura actual (mínimo POP).</p>
+      <a class="btn" href="/carga/ranco">Ir a cargar</a>
+    </div>
+  </div>
+</body>
+</html>
