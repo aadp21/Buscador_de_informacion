@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Carga – {{ tipo|capitalize }}</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;background:#f5f6fa;color:#2d3436;margin:16px;}
+    a{color:#0984e3;text-decoration:none;}
+    a:hover{text-decoration:underline;}
+    h1{color:#0984e3;font-size:1.4em;margin:8px 0 4px;}
+    h2{font-size:1.1em;margin:16px 0 8px;color:#2d3436;}
+    .breadcrumb{margin-bottom:8px;font-size:.9em}
+    .card{background:#fff;border:1px solid #e6e8eb;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.06);padding:14px;margin:12px 0;}
+    .error{background:#fdecea;border:1px solid #f5c6cb;color:#c62828;padding:10px;border-radius:6px;margin:8px 0;}
+    .ok{background:#edf7ed;border:1px solid #c8e6c9;color:#2e7d32;padding:10px;border-radius:6px;margin:8px 0;}
+    .warn{background:#fff8e1;border:1px solid #ffe082;color:#a67c00;padding:10px;border-radius:6px;margin:8px 0;}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .col{flex:1;min-width:280px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    button{background:#0984e3;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer}
+    button.secondary{background:#636e72}
+    button:hover{background:#74b9ff}
+    table{width:100%;border-collapse:collapse;background:#fff;font-size:.9em}
+    th,td{border:1px solid #e0e0e0;padding:6px 8px;text-align:left;vertical-align:top}
+    th{background:#f0f6ff}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8em}
+    .pill.ok{background:#e3f2fd;color:#0d47a1;border:1px solid #90caf9}
+    .pill.err{background:#ffebee;color:#b71c1c;border:1px solid #ef9a9a}
+    .pill.skip{background:#fff8e1;color:#a67c00;border:1px solid #ffe082}
+    .muted{color:#666;font-size:.9em}
+    .filebox{display:flex;gap:10px;align-items:center}
+    input[type="file"]{border:1px solid #ccc;padding:8px;border-radius:6px;background:#fff}
+    .note{font-size:.85em;color:#666}
+    .grid{display:grid;gap:10px}
+    @media (max-width:768px){ table{font-size:.85em} }
+  </style>
+</head>
+<body>
+  <div class="breadcrumb">
+    <a href="/carga">← Volver a Carga</a> &nbsp; / &nbsp; <strong>{{ tipo|capitalize }}</strong>
+  </div>
+
+  <h1>Carga – {{ tipo|capitalize }}</h1>
+
+  {% if error %}
+    <div class="error"><strong>Error:</strong> {{ error }}</div>
+  {% endif %}
+
+  {# ============================ #
+     FASE 1: SUBIR Y PREVISUALIZAR
+     (si NO existe preview)
+     ============================ #}
+  {% if not preview and not result %}
+    <div class="card">
+      <h2>1) Subir archivo (.xlsx)</h2>
+      <form method="post" action="/carga/{{ tipo }}" enctype="multipart/form-data" class="grid">
+        <div class="filebox">
+          <input type="file" name="file" accept=".xlsx" required />
+          <button type="submit">Subir y previsualizar</button>
+        </div>
+        <div class="note">El archivo debe tener la estructura esperada. Para <strong>Export</strong>, incluir las pestañas: <em>Export_5G</em>, <em>Export_4G</em>, <em>Export_3G</em>, <em>Export_2G</em>.</div>
+      </form>
+    </div>
+  {% endif %}
+
+  {# ============================ #
+     FASE 2: PREVIEW MOSTRADO
+     (ya existe preview; NO se pide archivo de nuevo)
+     ============================ #}
+  {% if preview %}
+    <div class="card">
+      <h2>2) Previsualización</h2>
+
+      {# --- Caso EXPORT (preview es dict por sub-hoja) --- #}
+      {% if tipo == 'export' %}
+        <div class="grid">
+          {% for sub, info in preview.items() %}
+            <div class="card">
+              <h3 style="margin:0 0 8px">{{ sub }}
+                {% if info.ok %}
+                  <span class="pill ok">Listo</span>
+                {% elif info.msg %}
+                  <span class="pill err">Error</span>
+                {% else %}
+                  <span class="pill skip">Pendiente</span>
+                {% endif %}
+              </h3>
+              <div class="muted">Filas: {{ info.rows }} · Columnas: {{ info.cols }}</div>
+
+              {% if info.msg %}
+                <div class="warn" style="margin-top:8px">{{ info.msg }}</div>
+              {% endif %}
+
+              {% if info.columns %}
+                <details style="margin-top:8px">
+                  <summary><strong>Columnas detectadas</strong></summary>
+                  <div class="muted" style="margin-top:6px">{{ info.columns | join(', ') }}</div>
+                </details>
+              {% endif %}
+
+              {% if info.sample and info.sample|length > 0 %}
+                <details style="margin-top:8px" open>
+                  <summary><strong>Vista previa (primeras 5 filas)</strong></summary>
+                  <div style="margin-top:6px; overflow:auto">
+                    <table>
+                      <thead>
+                        <tr>
+                          {% for k in info.sample[0].keys() %}
+                            <th>{{ k }}</th>
+                          {% endfor %}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for row in info.sample %}
+                          <tr>
+                            {% for k, v in row.items() %}
+                              <td>{{ v }}</td>
+                            {% endfor %}
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        {# --- Caso HOJAS SIMPLES --- #}
+        <div class="muted">Filas: {{ preview.rows }} · Columnas: {{ preview.cols }}</div>
+
+        {% if not preview.ok %}
+          <div class="warn" style="margin-top:8px">{{ preview.msg }}</div>
+        {% endif %}
+
+        {% if preview.columns %}
+          <details style="margin-top:8px">
+            <summary><strong>Columnas detectadas</strong></summary>
+            <div class="muted" style="margin-top:6px">{{ preview.columns | join(', ') }}</div>
+          </details>
+        {% endif %}
+
+        {% if preview.sample and preview.sample|length > 0 %}
+          <details style="margin-top:8px" open>
+            <summary><strong>Vista previa (primeras 5 filas)</strong></summary>
+            <div style="margin-top:6px; overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    {% for k in preview.sample[0].keys() %}
+                      <th>{{ k }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in preview.sample %}
+                    <tr>
+                      {% for k, v in row.items() %}
+                        <td>{{ v }}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>3) Confirmar y actualizar</h2>
+      <form method="post" action="/carga/{{ tipo }}">
+        <input type="hidden" name="token" value="{{ token }}" />
+        <input type="hidden" name="confirmar" value="si" />
+        <div class="actions">
+          <button type="submit">Confirmar y actualizar</button>
+          <a href="/carga/{{ tipo }}"><button type="button" class="secondary">Subir otro archivo</button></a>
+        </div>
+      </form>
+      <p class="note">No necesitas volver a adjuntar el archivo. Usaremos el que ya subiste.</p>
+    </div>
+  {% endif %}
+
+  {# ============================ #
+     RESULTADO DE ESCRITURA
+     ============================ #}
+  {% if result %}
+    <div class="card">
+      <h2>Resultado</h2>
+
+      {% if tipo == 'export' and result.items %}
+        <div style="overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Sub-hoja</th>
+                <th>Estado</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for sub, detalle in result.items() %}
+                {% set estado = 'ok' if 'Actualizado' in detalle else ('skip' if 'Saltado' in detalle else 'err') %}
+                <tr>
+                  <td>{{ sub }}</td>
+                  <td>
+                    {% if estado == 'ok' %}
+                      <span class="pill ok">Actualizado</span>
+                    {% elif estado == 'skip' %}
+                      <span class="pill skip">Saltado</span>
+                    {% else %}
+                      <span class="pill err">Error</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ detalle }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <ul>
+          {% for k, v in result.items() %}
+            <li><strong>{{ k }}:</strong> {{ v }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <div class="actions" style="margin-top:10px">
+        <a href="/carga/{{ tipo }}"><button type="button">Cargar otro archivo</button></a>
+        <a href="/carga"><button type="button" class="secondary">Volver a Carga</button></a>
+      </div>
+    </div>
+  {% endif %}
+</body>
+</html>
