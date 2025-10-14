@@ -162,28 +162,49 @@ SMTP_PASS = os.getenv("SMTP_PASS", "")
 FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER or "no-reply@example.com")
 NOTIFY_EMAILS = [e.strip() for e in os.getenv("NOTIFY_EMAILS", "").split(",") if e.strip()]
 
+
 def send_mail(subject: str, html_body: str, to_addrs=None):
-    """Envía un correo HTML a NOTIFY_EMAILS (o a to_addrs si se pasa). No revienta la request si falla."""
+    """Envía un correo HTML. Soporta SMTP SSL (465) y STARTTLS (587)."""
     if not SMTP_HOST or not (NOTIFY_EMAILS or to_addrs):
         print("ℹ️ Notificación no enviada: SMTP/DESTinatarios no configurados.")
         return
-    recipients = to_addrs or NOTIFY_EMAILS
+
+    import smtplib, ssl
+
+    recipients = [e.strip() for e in (to_addrs or NOTIFY_EMAILS) if e.strip()]
+    if not recipients:
+        print("ℹ️ Notificación no enviada: lista de destinatarios vacía.")
+        return
+
     msg = MIMEText(html_body, "html", "utf-8")
     msg["Subject"] = subject
     msg["From"] = FROM_EMAIL
     msg["To"] = ", ".join(recipients)
     msg["Date"] = formatdate(localtime=True)
+
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
-            s.starttls()
-            if SMTP_USER:
-                s.login(SMTP_USER, SMTP_PASS)
-            s.sendmail(FROM_EMAIL, recipients, msg.as_string())
+        port = int(SMTP_PORT or "587")
+        if port == 465:
+            # SSL directo
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(SMTP_HOST, port, timeout=20, context=context) as s:
+                if SMTP_USER:
+                    s.login(SMTP_USER, SMTP_PASS)
+                s.sendmail(FROM_EMAIL, recipients, msg.as_string())
+        else:
+            # STARTTLS (p. ej. 587)
+            with smtplib.SMTP(SMTP_HOST, port, timeout=20) as s:
+                s.ehlo()
+                s.starttls(context=ssl.create_default_context())
+                s.ehlo()
+                if SMTP_USER:
+                    s.login(SMTP_USER, SMTP_PASS)
+                s.sendmail(FROM_EMAIL, recipients, msg.as_string())
+
         print(f"✉️  Mail enviado a: {recipients}")
-    except smtplib.SMTPAuthenticationError as e:
-        print("❌ SMTPAuthenticationError:", e)
     except Exception as e:
-        print("❌ Error enviando correo:", e)
+        print("❌ Error enviando correo:", repr(e))
+
 
 
 # =========================
