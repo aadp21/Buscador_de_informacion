@@ -421,18 +421,55 @@ def _comparativo_rows(bases_rows: List[dict], dir_rows: List[dict]) -> List[dict
 def _rows_to_df(rows: List[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
-def _comparativo_df(bases_rows: List[dict], dir_rows: List[dict]) -> pd.DataFrame:
-    campos = set()
-    for r in bases_rows or []: campos.update(r.keys())
-    for r in dir_rows or []:   campos.update(r.keys())
-    campos = [c for c in campos if c]
+def _comparativo_df(bases_rows: List[dict], dir_rows: List[dict],prefer_bases: List[str], prefer_dir: List[str]) -> pd.DataFrame:
+    """
+    Construye el comparativo respetando el orden:
+      1) columnas en prefer_bases (si existen)
+      2) columnas en prefer_dir (si existen y no repetidas)
+      3) cualquier otra columna que aparezca, en orden de aparición
+    También cuida el formateo de floats (útil para Latitud/Longitud).
+    """
+    def seen_order(keys, seen):
+        out = []
+        for k in keys:
+            if not k:
+                continue
+            if k not in seen:
+                out.append(k); seen.add(k)
+        return out
+
+    # 1) Preferencias
+    seen = set()
+    campos = []
+    campos += seen_order(prefer_bases, seen)
+    campos += seen_order([c for c in prefer_dir if c not in seen], seen)
+
+    # 2) Cualquier otra clave en orden de aparición real
+    def keys_in_rows(rows):
+        for r in rows or []:
+            for k in r.keys():
+                if k and k not in seen:
+                    yield k
+    for k in keys_in_rows(bases_rows):
+        campos.append(k); seen.add(k)
+    for k in keys_in_rows(dir_rows):
+        if k not in seen:
+            campos.append(k); seen.add(k)
+
+    def _fmt(v):
+        # Evita “truncados” visuales de floats (lat/lon); ajusta precisión si lo deseas
+        if isinstance(v, float):
+            return ('{:.10f}'.format(v)).rstrip('0').rstrip('.')  # hasta 10 decimales
+        return str(v) if v is not None else ""
 
     def _val(rows, campo):
-        if not rows: return ""
-        vals = [str(r.get(campo, "") or "") for r in rows]
-        return " | ".join([v for v in vals if v != ""])
+        if not rows:
+            return ""
+        vals = [_fmt(r.get(campo, "")) for r in rows]
+        vals = [v for v in vals if v != ""]
+        return " | ".join(vals)
 
-    data = [{"Campo": c, "Bases POP": _val(bases_rows, c), "Directorio": _val(dir_rows, c)} for c in sorted(campos)]
+    data = [{"Campo": c, "Bases POP": _val(bases_rows, c), "Directorio": _val(dir_rows, c)} for c in campos]
     return pd.DataFrame(data)
 
 def _format_sheet(ws):
@@ -549,7 +586,12 @@ def exportar_excel(codigo: str):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         # 1) Bases POP vs Directorio (comparativo)
-        df_comp = _comparativo_df(bases_rows, dir_rows)
+        df_comp = _comparativo_df(
+            bases_rows,
+            dir_rows,
+            prefer_bases=columnas_bases,
+            prefer_dir=columnas_dir
+        )
         if df_comp.empty:
             df_comp = pd.DataFrame(columns=["Campo","Bases POP","Directorio"])
         df_comp.to_excel(writer, index=False, sheet_name="Bases POP vs Directorio")
