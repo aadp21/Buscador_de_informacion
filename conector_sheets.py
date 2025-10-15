@@ -1,11 +1,14 @@
-import os
-import json
+
+
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 from gspread_dataframe import set_with_dataframe
-import math
 from google.auth.transport.requests import AuthorizedSession
+import os, json, math
+
+
+
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 _gc = None
@@ -17,8 +20,8 @@ def _load_creds():
     if env_json:
         creds = Credentials.from_service_account_info(json.loads(env_json), scopes=SCOPES)
     else:
-        print("✅ Usando credenciales desde archivo local (config/credentials.json)")
-        creds = Credentials.from_service_account_file("config/credentials.json", scopes=SCOPES)
+        creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "config/credentials.json")
+        creds = Credentials.from_service_account_file(creds_path, scopes=SCOPES)
     try:
         print("➡️ Service Account:", creds.service_account_email)
     except Exception:
@@ -26,46 +29,49 @@ def _load_creds():
     return creds
 
 def _client():
+    """Devuelve un cliente gspread ya autenticado."""
     global _gc
-    if _gc: return _gc
-    import os, json
-    env_json = os.getenv("GOOGLE_CREDENTIALS") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-    if env_json:
-        creds = Credentials.from_service_account_info(json.loads(env_json), scopes=SCOPES)
-    else:
-        path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "config/credentials.json")
-        creds = Credentials.from_service_account_file(path, scopes=SCOPES)
-    _gc = gspread.Client(auth=creds, http_session=AuthorizedSession(creds))
+    if _gc:
+        return _gc
+    creds = _load_creds()
+
+    # OPCIÓN 1 (sencilla, compatible con todas las versiones):
+    _gc = gspread.authorize(creds)
+
+    # OPCIÓN 2 (si quieres sesión explícita y tu gspread soporta 'session='):
+    # session = AuthorizedSession(creds)
+    # _gc = gspread.Client(auth=creds, session=session)
+
     return _gc
 
 def _get_worksheet(sh, title: str):
     try:
         return sh.worksheet(title)
-    except gspread.exceptions.WorksheetNotFound:
-        # crea con tamaño inicial; se autoexpande
+    except gspread.WorksheetNotFound:
         return sh.add_worksheet(title=title, rows="1000", cols="26")
-
 
 def escribir_hoja_stream(sheet_id: str, sheet_name: str, rows_iter, batch_rows: int = 800):
     """
     Sobrescribe completamente la pestaña, escribiendo filas iterativamente.
-    rows_iter: iterador/generador que produce listas (cada lista = una fila)
-               La 1ª fila debe ser el header.
+    rows_iter: iterador/generador que produce listas (cada lista = una fila).
+               La primera fila debe ser el header.
     """
     gc = _client()
     sh = gc.open_by_key(sheet_id)
-    try:
-        ws = sh.worksheet(sheet_name)
-    except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(title=sheet_name, rows="1000", cols="26")
+    ws = _get_worksheet(sh, sheet_name)
 
-    # limpia la hoja destino
+    # Limpia hoja destino
     ws.clear()
 
-    # Escribe por bloques
     buffer = []
     start_row = 1
     max_cols = 0
+
+    def pad_to(rect_cols, row):
+        # Rellena con "" para que todas las filas del bloque tengan la misma longitud
+        if len(row) < rect_cols:
+            return row + [""] * (rect_cols - len(row))
+        return row
 
     def flush():
         nonlocal buffer, start_row, max_cols
@@ -73,22 +79,25 @@ def escribir_hoja_stream(sheet_id: str, sheet_name: str, rows_iter, batch_rows: 
             return
         end_row = start_row + len(buffer) - 1
         end_col = max_cols or (len(buffer[0]) if buffer else 1)
+        # Asegura bloque rectangular
+        rect = [pad_to(end_col, r) for r in buffer]
         start_a1 = gspread.utils.rowcol_to_a1(start_row, 1)
-        end_a1 = gspread.utils.rowcol_to_a1(end_row, end_col)
-        ws.update(f"{start_a1}:{end_a1}", buffer, value_input_option="RAW")
+        end_a1   = gspread.utils.rowcol_to_a1(end_row, end_col)
+        ws.update(f"{start_a1}:{end_a1}", rect, value_input_option="RAW")
         start_row = end_row + 1
         buffer = []
 
     for row in rows_iter:
+        row = ["" if v is None else str(v) for v in row]
         max_cols = max(max_cols, len(row))
         buffer.append(row)
         if len(buffer) >= batch_rows:
             flush()
 
     flush()
-    # opcional: redimensiona hoja al tamaño justo
+    # Redimensiona a tamaño final
     if start_row > 1:
-        ws.resize(rows=start_row-1, cols=max_cols)
+        ws.resize(rows=start_row - 1, cols=max_cols)
 
 def escribir_hoja(sheet_id: str, sheet_name: str, df: pd.DataFrame):
     """
