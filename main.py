@@ -43,7 +43,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SECRET_KEY", "dev-secret-change-me"),
     session_cookie="bi_session",
-    https_only=False,   # True en Render
+    https_only=True,   # True en Render
     same_site="lax",
     max_age=1800,       # 30 min
 )
