@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends, UploadFile, File, Form
+from fastapi import FastAPI, Request, UploadFile, File, Form, Depends, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -6,7 +6,6 @@ from conector_sheets import leer_hoja, escribir_hoja_stream
 import pandas as pd
 import time
 import io
-import os
 from typing import Dict, List
 from email.mime.text import MIMEText
 from email.utils import formatdate
@@ -18,7 +17,16 @@ from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, PatternFill, Alignment
 import unicodedata
 from openpyxl import load_workbook
-
+from conector_sheets import leer_filas_por_pop
+from io import BytesIO
+import re
+import asyncio
+from auth import current_user
+import os
+from fastapi.staticfiles import StaticFiles
+from auth import router as auth_router
+from fastapi.responses import FileResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 
 
@@ -26,7 +34,78 @@ from openpyxl import load_workbook
 SHEET_ID = "18e8Bfx5U1XLar7DOQ7PSVO5nQzluqKBHaxSOfRcreRI"
 templates = Jinja2Templates(directory="templates")
 
+
+# ---- crea la app primero
 app = FastAPI()
+
+# --- Session middleware: DEBE ir apenas se crea app ---
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "dev-secret-change-me"),
+    session_cookie="bi_session",
+    https_only=False,   # True en Render
+    same_site="lax",
+    max_age=1800,       # 30 min
+)
+
+# (opcional) sirve favicon para que no pase por middlewares
+
+@app.get("/favicon.ico")
+def favicon():
+    path = os.path.join("static", "favicon.ico")
+    if os.path.exists(path):
+        return FileResponse(path)
+    # 204 “No Content” para evitar errores si no hay favicon
+    return Response(status_code=204)
+
+SESSION_TTL_SECONDS = 1800  # igual que max_age
+
+from urllib.parse import quote
+
+@app.middleware("http")
+async def enforce_session_ttl(request: Request, call_next):
+    path = request.url.path
+
+    # Rutas que NO requieren sesión
+    if (
+        path.startswith("/static")
+        or path.startswith("/auth")
+        or path in ("/", "/favicon.ico")
+    ):
+        return await call_next(request)
+
+    # ⚠️ Importante: NO accedemos a request.session aquí.
+    # Revisamos el scope directamente para evitar la AssertionError.
+    if "session" not in request.scope:
+        return await call_next(request)
+
+    email = request.session.get("user_email")
+    login_ts = request.session.get("login_ts")
+
+    if email and login_ts:
+        try:
+            if time.time() - float(login_ts) > SESSION_TTL_SECONDS:
+                request.session.clear()
+                nxt = quote(str(request.url), safe="")
+                return RedirectResponse(f"/auth/login?next={nxt}", status_code=302)
+            else:
+                # sesión deslizante
+                request.session["login_ts"] = time.time()
+        except Exception:
+            request.session.clear()
+            nxt = quote(str(request.url), safe="")
+            return RedirectResponse(f"/auth/login?next={nxt}", status_code=302)
+
+    return await call_next(request)
+
+
+# ---- static
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# ---- incluye rutas de auth (después del middleware)
+app.include_router(auth_router)
+
+
 
 # =========================
 #  Autenticación (Basic) - Multiusuario
@@ -37,7 +116,7 @@ security = HTTPBasic()
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 UPLOAD_USERS = os.getenv(
-    "UPLOAD_USERS","vrossel@olitel.cl:12345; prodriguez@olitel.cl:12345; gmunoz@olitel.cl:12345; adelgado@olitel.cl:12345"
+    "UPLOAD_USERS","vrossel@olitel.cl:Vladimir2025; prodriguez@olitel.cl:Pablo2025; gmunoz@olitel.cl:Galo2025; adelgado@olitel.cl:123456789"
 )
 
 def _parse_user_list(raw: str):
@@ -132,6 +211,22 @@ def _norm_cols(cols):
 
 def _strip_accents(s: str) -> str:
     return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
+
+# ==== Helpers de orden ====
+def _natural_key(s: str):
+    """Clave de orden 'natural' para IDs alfanuméricos (A1, A2, A10...)."""
+    s = "" if s is None else str(s)
+    return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s)]
+
+def _find_key_ci(rows: list[dict], target: str) -> str | None:
+    """Devuelve el nombre real de la clave 'target' ignorando tildes y mayúsculas, o None si no existe."""
+    if not rows:
+        return None
+    tgt = _strip_accents(target).upper().strip()
+    for k in rows[0].keys():
+        if _strip_accents(str(k)).upper().strip() == tgt:
+            return k
+    return None
 
 # Modifica en filtrar_por_pop:
 def filtrar_por_pop(df: pd.DataFrame, codigo: str, excluir=None):
@@ -288,7 +383,15 @@ def root():
 #  Buscar (existente)
 # =========================
 @app.get("/buscar", response_class=HTMLResponse)
-def buscar_pop(request: Request, codigo: str = None):
+def buscar_pop(
+        request: Request,
+        codigo: str = None,
+        user_email: str = Depends(current_user)  # ← NUEVO
+):
+    # ← NUEVO: si no hay sesión, redirige a login y vuelve al mismo URL tras loguear
+    if not user_email:
+        next_url = quote(str(request.url), safe="")
+        return RedirectResponse(f"/auth/login?next={next_url}", status_code=302)
     if not codigo:
         return templates.TemplateResponse(
             "buscar.html",
@@ -359,20 +462,27 @@ def buscar_pop(request: Request, codigo: str = None):
         df_hardware = get_data("Base Hardware")
         hardware_result = filtrar_por_pop(df_hardware, codigo)
 
+        # --- ordenar Base Hardware por SITE ID (ascendente, natural; vacíos al final) ---
+        site_key = _find_key_ci(hardware_result, "SITE ID")
+        if site_key:
+            hardware_result.sort(
+                key=lambda r: (r.get(site_key) in ("", None), _natural_key(r.get(site_key, "")))
+            )
+
         # Export 5G
-        df_5g = get_data("Export_5G")
+        df_5g = leer_filas_por_pop(SHEET_ID, "Export_5G", codigo)
         export_5g_result = filtrar_por_pop(df_5g, codigo, excluir=["nRSectorCarrierRef"])
 
         # Export 4G
-        df_4g = get_data("Export_4G")
+        df_4g = leer_filas_por_pop(SHEET_ID, "Export_4G", codigo)
         export_4g_result = filtrar_por_pop(df_4g, codigo, excluir=["latitud", "longitud", "Región"])
 
         # Export 3G
-        df_3g = get_data("Export_3G")
+        df_3g = leer_filas_por_pop(SHEET_ID, "Export_3G", codigo)
         export_3g_result = filtrar_por_pop(df_3g, codigo, excluir=["latitude", "longitude", "Región"])
 
         # Export 2G
-        df_2g = get_data("Export_2G")
+        df_2g = leer_filas_por_pop(SHEET_ID, "Export_2G", codigo)
         export_2g_result = filtrar_por_pop(df_2g, codigo, excluir=["Latitude", "Longitude"])
 
     except Exception as e:
@@ -395,28 +505,7 @@ def buscar_pop(request: Request, codigo: str = None):
         }
     )
 
-# ========= Helpers Excel (una sola hoja, bloques apilados) =========
-def _comparativo_rows(bases_rows: List[dict], dir_rows: List[dict]) -> List[dict]:
-    campos = set()
-    for r in bases_rows or []:
-        campos.update(r.keys())
-    for r in dir_rows or []:
-        campos.update(r.keys())
-    campos = [c for c in campos if c]
-
-    def _val(rows, campo):
-        if not rows:
-            return ""
-        vals = []
-        for r in rows:
-            vals.append(str(r.get(campo, "") or ""))
-        return " | ".join([v for v in vals if v != ""])
-
-    out = []
-    for c in sorted(campos):
-        out.append({"Campo": c, "Bases POP": _val(bases_rows, c), "Directorio": _val(dir_rows, c)})
-    return out
-
+# ========= Helpers Excel (comparativo + conversión a DF)” =========
 
 def _rows_to_df(rows: List[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows) if rows else pd.DataFrame()
@@ -544,7 +633,7 @@ def exportar_excel(codigo: str):
     if not codigo:
         return JSONResponse({"error": "Falta parámetro codigo"}, status_code=400)
 
-    # Bases POP (mismas columnas que en /buscar)
+    # Bases POP
     df_bases = get_data("Bases POP")
     df_bases.columns = [c.strip() for c in df_bases.columns]
     columnas_bases = [
@@ -556,11 +645,12 @@ def exportar_excel(codigo: str):
     ]
     bases_rows = []
     if "POP" in df_bases.columns:
-        mask = df_bases["POP"].astype(str).str.upper().str.strip() == codigo.upper().strip()
+        norm = lambda s: _strip_accents(str(s)).upper().strip()
+        mask = df_bases["POP"].map(norm) == norm(codigo)   # ← corregido
         cols_ok = [c for c in columnas_bases if c in df_bases.columns]
         bases_rows = df_bases.loc[mask, cols_ok].fillna("").to_dict(orient="records")
 
-    # Directorio (mismas columnas que en /buscar)
+    # Directorio
     df_dir = get_data("Directorio")
     df_dir.columns = [c.strip() for c in df_dir.columns]
     columnas_dir = [
@@ -570,33 +660,33 @@ def exportar_excel(codigo: str):
     ]
     dir_rows = []
     if "POP" in df_dir.columns:
-        mask = df_dir["POP"].astype(str).str.upper().str.strip() == codigo.upper().strip()
+        norm = lambda s: _strip_accents(str(s)).upper().strip()
+        mask = df_dir["POP"].map(norm) == norm(codigo)     # ← corregido
         cols_ok = [c for c in columnas_dir if c in df_dir.columns]
         dir_rows = df_dir.loc[mask, cols_ok].fillna("").to_dict(orient="records")
 
-    # Otras hojas (mismas exclusiones que la vista)
+    # Otras hojas
     proyecto_ranco_rows = filtrar_por_pop(get_data("Proyecto_RANCO"), codigo)
-    hardware_rows       = filtrar_por_pop(get_data("Base Hardware"), codigo)
-    export_5g_rows      = filtrar_por_pop(get_data("Export_5G"), codigo, excluir=["nRSectorCarrierRef"])
-    export_4g_rows      = filtrar_por_pop(get_data("Export_4G"), codigo, excluir=["latitud", "longitud", "Región"])
-    export_3g_rows      = filtrar_por_pop(get_data("Export_3G"), codigo, excluir=["latitude", "longitude", "Región"])
-    export_2g_rows      = filtrar_por_pop(get_data("Export_2G"), codigo, excluir=["Latitude", "Longitude"])
+    hardware_rows = filtrar_por_pop(get_data("Base Hardware"), codigo)
+    # --- ordenar Base Hardware por SITE ID también en la exportación ---
+    site_key = _find_key_ci(hardware_rows, "SITE ID")
+    if site_key:
+        hardware_rows.sort(
+            key=lambda r: (r.get(site_key) in ("", None), _natural_key(r.get(site_key, "")))
+        )
+    export_5g_rows = filtrar_por_pop(leer_filas_por_pop(SHEET_ID, "Export_5G", codigo), codigo, excluir=["nRSectorCarrierRef"])
+    export_4g_rows = filtrar_por_pop(leer_filas_por_pop(SHEET_ID, "Export_4G", codigo), codigo, excluir=["latitud", "longitud", "Región"])
+    export_3g_rows = filtrar_por_pop(leer_filas_por_pop(SHEET_ID, "Export_3G", codigo), codigo, excluir=["latitude", "longitude", "Región"])
+    export_2g_rows = filtrar_por_pop(leer_filas_por_pop(SHEET_ID, "Export_2G", codigo), codigo, excluir=["Latitude", "Longitude"])
 
-    # Construir Excel multi-hoja
+    # Excel multi-hoja
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        # 1) Bases POP vs Directorio (comparativo)
-        df_comp = _comparativo_df(
-            bases_rows,
-            dir_rows,
-            prefer_bases=columnas_bases,
-            prefer_dir=columnas_dir
-        )
+        df_comp = _comparativo_df(bases_rows, dir_rows, prefer_bases=columnas_bases, prefer_dir=columnas_dir)
         if df_comp.empty:
             df_comp = pd.DataFrame(columns=["Campo","Bases POP","Directorio"])
         df_comp.to_excel(writer, index=False, sheet_name="Bases POP vs Directorio")
 
-        # 2..7) Resto de bloques
         _rows_to_df(proyecto_ranco_rows).to_excel(writer, index=False, sheet_name="Proyecto RANCO")
         _rows_to_df(hardware_rows).to_excel(writer, index=False, sheet_name="Base Hardware")
         _rows_to_df(export_5g_rows).to_excel(writer, index=False, sheet_name="Export 5G")
@@ -604,7 +694,6 @@ def exportar_excel(codigo: str):
         _rows_to_df(export_3g_rows).to_excel(writer, index=False, sheet_name="Export 3G")
         _rows_to_df(export_2g_rows).to_excel(writer, index=False, sheet_name="Export 2G")
 
-        # Formato por hoja (cabecera, wrap, auto-ancho)
         wb = writer.book
         for name in ["Bases POP vs Directorio","Proyecto RANCO","Base Hardware","Export 5G","Export 4G","Export 3G","Export 2G"]:
             ws = wb[name]
@@ -617,8 +706,9 @@ def exportar_excel(codigo: str):
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename=\"{filename}\"'}
     )
+
 
 
 
@@ -641,25 +731,24 @@ def carga_form(request: Request, tipo: str, user: str = Depends(require_auth)):
 
 @app.post("/carga/{tipo}", response_class=HTMLResponse)
 async def carga_upload(
-        request: Request,
-        tipo: str,
-        file: UploadFile = File(None),  # <- opcional
-        confirmar: str = Form("no"),
-        token: str = Form(None),  # <- nuevo
-        user: str = Depends(require_auth),
+    request: Request,
+    tipo: str,
+    file: UploadFile = File(None),   # opcional en PREVIEW, no en CONFIRM
+    confirmar: str = Form("no"),
+    token: str = Form(None),
+    user: str = Depends(require_auth),
 ):
     tipo = tipo.lower()
     ctx = {"request": request, "tipo": tipo, "preview": None, "result": None, "error": None, "token": token}
     purge_temp_uploads()
-    # 1) Preparar el archivo (xio) según si es PREVIEW o CONFIRMAR
+
+    # ========= 1) Preparar xio: PREVIEW lee del Upload; CONFIRM usa token =========
     try:
         if confirmar != "si":
-            # PREVIEW: debe venir el archivo adjunto
             if not file or not file.filename:
                 ctx["error"] = "Debes subir un archivo Excel (.xlsx)."
                 return templates.TemplateResponse("carga_form.html", ctx)
-            fname = (file.filename or "").lower()
-            if not fname.endswith(".xlsx"):
+            if not (file.filename or "").lower().endswith(".xlsx"):
                 ctx["error"] = "Debes subir un archivo Excel (.xlsx)."
                 return templates.TemplateResponse("carga_form.html", ctx)
             data = await file.read()
@@ -667,7 +756,6 @@ async def carga_upload(
             ctx["token"] = tok
             xio = io.BytesIO(data)
         else:
-            # CONFIRMAR: recuperar desde token
             if not token:
                 ctx["error"] = "No se encontró token de archivo. Vuelve a subir el archivo."
                 return templates.TemplateResponse("carga_form.html", ctx)
@@ -679,52 +767,54 @@ async def carga_upload(
     except Exception as e:
         ctx["error"] = f"Error leyendo archivo: {e}"
         return templates.TemplateResponse("carga_form.html", ctx)
+
+    # ========= 2) Ramas por tipo =========
     try:
-        # 2) Ramas por tipo
+        # -------------------- EXPORT_* (múltiples hojas) --------------------
         if tipo == "export":
-            # Leer TODAS las sub-hojas
-            xls: Dict[str, pd.DataFrame] = pd.read_excel(xio, sheet_name=None)
             wanted = ["Export_5G", "Export_4G", "Export_3G", "Export_2G"]
-            if confirmar != "si":
-                # ---- PREVIEW EXPORT ----
-                preview = {}
-                pops_info = {}
-                for w in wanted:
-                    if w in xls:
-                        dfw = xls[w]
-                        cols_norm = _norm_cols_upper(dfw.columns)
-                        if "POP" not in cols_norm:
-                            preview[w] = {
-                                "ok": False, "msg": "Falta columna POP",
-                                "rows": len(dfw), "cols": len(dfw.columns),
-                                "columns": dfw.columns.tolist(),
-                                "sample": dfw.head(5).to_dict(orient="records"),
-                            }
-                        else:
-                            preview[w] = {
-                                "ok": True, "msg": "Listo para actualizar",
-                                "rows": len(dfw), "cols": len(dfw.columns),
-                                "columns": dfw.columns.tolist(),
-                                "sample": dfw.head(5).to_dict(orient="records"),
-                            }
-                            pops_info[w] = analizar_pop_df(dfw)
-                    else:
-                        preview[w] = {
-                            "ok": False, "msg": "No está en el archivo",
-                            "rows": 0, "cols": 0, "columns": [], "sample": [],
-                        }
-                ctx["preview"] = preview
-                return templates.TemplateResponse("carga_form.html", ctx)
-            # ---- CONFIRM EXPORT (streaming) ----
-            from io import BytesIO
             xio.seek(0)
             wb = load_workbook(filename=BytesIO(xio.read()), read_only=True, data_only=True)
 
-            wanted = ["Export_5G", "Export_4G", "Export_3G", "Export_2G"]
+            # PREVIEW: muestra columnas + 20 filas por hoja, valida POP
+            if confirmar != "si":
+                preview = {}
+                for w in wanted:
+                    if w not in wb.sheetnames:
+                        preview[w] = {"ok": False, "msg": "No está en el archivo",
+                                      "rows": 0, "cols": 0, "columns": [], "sample": []}
+                        continue
+
+                    ws = wb[w]
+                    rows = list(ws.iter_rows(values_only=True, max_row=6))  # header + 5
+                    if not rows:
+                        preview[w] = {"ok": False, "msg": "Hoja vacía",
+                                      "rows": 0, "cols": 0, "columns": [], "sample": []}
+                        continue
+
+                    headers = ["" if v is None else str(v) for v in rows[0]]
+                    cols_norm = _norm_cols_upper(headers)
+                    ok_pop = ("POP" in cols_norm)
+                    sample = [
+                        {headers[i]: ("" if c is None else str(c)) for i, c in enumerate(r)}
+                        for r in rows[1:]
+                    ]
+                    preview[w] = {
+                        "ok": ok_pop,
+                        "msg": "Listo para actualizar" if ok_pop else "Falta columna POP",
+                        "rows": ws.max_row,
+                        "cols": len(headers),
+                        "columns": headers,
+                        "sample": sample
+                    }
+
+                ctx["preview"] = preview
+                return templates.TemplateResponse("carga_form.html", ctx)
+
+            # CONFIRM: escribir en streaming cada hoja existente
             write_summary, touched = {}, []
 
             def iter_sheet_rows(ws):
-                # genera filas como listas de strings, normalizando
                 for r in ws.iter_rows(values_only=True):
                     yield ["" if v is None else str(v) for v in r]
 
@@ -732,7 +822,7 @@ async def carga_upload(
                 if w in wb.sheetnames:
                     ws = wb[w]
                     try:
-                        escribir_hoja_stream(SHEET_ID, w, iter_sheet_rows(ws), batch_rows=800)
+                        escribir_hoja_stream(SHEET_ID, w, iter_sheet_rows(ws), batch_rows=5000)
                         write_summary[w] = f"Actualizado ✅ (stream) | Filas aprox: {ws.max_row}"
                         touched.append(w)
                     except Exception as e:
@@ -740,75 +830,58 @@ async def carga_upload(
                 else:
                     write_summary[w] = "Saltado: No está en el archivo"
 
+                await asyncio.sleep(2)
+
             invalidate_cache(touched)
             ctx["result"] = write_summary
-            # (envío de correo igual que antes)
-            # limpiar token
-            if token: TEMP_UPLOADS.pop(token, None)
-            return templates.TemplateResponse("carga_form.html", ctx)
-            # Email resumen
-            from time import strftime, localtime
-            ts = strftime("%Y-%m-%d %H:%M", localtime())
-            subject = f"[Carga] Export por {user} – resultado ({ts})"
-            rows_html = []
-            for w in wanted:
-                res = write_summary.get(w, "No procesado")
-                pop_warn = pops_info.get(w)
-                warn_txt = ""
-                if pop_warn:
-                    warn_txt = f"<br><em>POP vacíos: {pop_warn['vacios_count']}, duplicados: {pop_warn['dups_count']}</em>"
-                rows_html.append(f"""
-                <tr>
-                  <td>{w}</td>
-                  <td>{'Actualizado ✅' if 'Actualizado ✅' in res else ('Saltado' if 'Saltado' in res else 'Error')}</td>
-                  <td>{res}</td>
-                  <td>{warn_txt}</td>
-                </tr>
-                """)
-            body = f"""
-            <h2>Resultado de carga – Export</h2>
-            <p><strong>Usuario:</strong> {user}</p>
-            <p><strong>Fecha/Hora:</strong> {ts}</p>
-            <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px;">
-              <thead style="background:#f2f2f2;">
-                <tr><th>Sub-hoja</th><th>Estado</th><th>Detalle</th><th>Advertencias POP</th></tr>
-              </thead>
-              <tbody>
-                {''.join(rows_html)}
-              </tbody>
-            </table>
-            <p style="color:#555;">Este mensaje se envía automáticamente a: {', '.join(NOTIFY_EMAILS) if NOTIFY_EMAILS else '(destinatarios no configurados)'}.</p>
-            """
-            send_mail(subject, body)
-            # limpiar token usado
+
+            # (opcional) Email resumen
+            # from time import strftime, localtime
+            # ts = strftime("%Y-%m-%d %H:%M", localtime())
+            # send_mail(...)
+
             if token:
                 TEMP_UPLOADS.pop(token, None)
             return templates.TemplateResponse("carga_form.html", ctx)
+
+        # -------------------- Hojas simples: bases/directorio/hardware/ranco --------------------
         else:
-            # ====== HOJAS SIMPLES ======
-            df = pd.read_excel(xio, sheet_name=0)
-            cols_norm = _norm_cols_upper(df.columns)
-            if confirmar != "si":
-                # ---- PREVIEW SIMPLE ----
-                has_pop = "POP" in cols_norm
-                ctx["preview"] = {
-                    "rows": len(df), "cols": len(df.columns),
-                    "columns": df.columns.tolist(),
-                    "sample": df.head(5).to_dict(orient="records"),
-                    "ok": has_pop, "msg": "Listo para actualizar" if has_pop else "Falta columna POP",
-                }
-                return templates.TemplateResponse("carga_form.html", ctx)
-            # ---- CONFIRM SIMPLE (streaming) ----
             xio.seek(0)
             wb = load_workbook(filename=xio, read_only=True, data_only=True)
             ws0 = wb[wb.sheetnames[0]]
 
-            # PREVALIDAR encabezados para POP sin cargar todo
-            headers = ["" if v is None else str(v).strip() for v in next(ws0.iter_rows(values_only=True, max_row=1))]
+            # PREVIEW: no usamos pandas; extraemos headers + primeras filas con openpyxl
+            if confirmar != "si":
+                rows = list(ws0.iter_rows(values_only=True, max_row=6))  # header + 5
+                if not rows:
+                    ctx["error"] = "Hoja vacía."
+                    return templates.TemplateResponse("carga_form.html", ctx)
+
+                headers = ["" if v is None else str(v).strip() for v in rows[0]]
+                cols_norm = _norm_cols_upper(headers)
+                has_pop = ("POP" in cols_norm)
+
+                sample = [
+                    {headers[i]: ("" if c is None else str(c)) for i, c in enumerate(r)}
+                    for r in rows[1:]
+                ]
+
+                ctx["preview"] = {
+                    "rows": ws0.max_row,
+                    "cols": len(headers),
+                    "columns": headers,
+                    "sample": sample,
+                    "ok": has_pop,
+                    "msg": "Listo para actualizar" if has_pop else "Falta columna POP",
+                }
+                return templates.TemplateResponse("carga_form.html", ctx)
+
+            # CONFIRM: validar POP y volcar streaming
+            headers = ["" if v is None else str(v).strip()
+                       for v in next(ws0.iter_rows(values_only=True, max_row=1))]
             has_pop = any(h.strip().upper() == "POP" for h in headers)
             if not has_pop:
                 ctx["error"] = "No se puede actualizar: falta columna POP."
-                # (correo de error igual que antes)
                 return templates.TemplateResponse("carga_form.html", ctx)
 
             def iter_rows():
@@ -822,22 +895,27 @@ async def carga_upload(
                 "hardware": "Base Hardware",
                 "ranco": "Proyecto_RANCO",
             }
+            if tipo not in target_map:
+                ctx["error"] = "Tipo de carga no reconocido."
+                return templates.TemplateResponse("carga_form.html", ctx)
+
             target = target_map[tipo]
 
             try:
                 escribir_hoja_stream(SHEET_ID, target, iter_rows(), batch_rows=800)
                 invalidate_cache([target])
                 ctx["result"] = {target: "Actualizado ✅ (stream)"}
-                # (correo de éxito igual que antes)
-                if token: TEMP_UPLOADS.pop(token, None)
+                if token:
+                    TEMP_UPLOADS.pop(token, None)
                 return templates.TemplateResponse("carga_form.html", ctx)
             except Exception as e:
                 ctx["error"] = f"Error al escribir: {e}"
-                # (correo de error)
                 return templates.TemplateResponse("carga_form.html", ctx)
+
     except Exception as e:
         ctx["error"] = f"Error procesando archivo: {e}"
-        ts = time.strftime("%Y-%m-%d %H:%M", time.localtime())
+        from time import strftime, localtime
+        ts = strftime("%Y-%m-%d %H:%M", localtime())
         subject = f"[Carga] {tipo.capitalize()} por {user} – ERROR ({ts})"
         body = f"""
         <h2>Error procesando archivo – {tipo.capitalize()}</h2>
