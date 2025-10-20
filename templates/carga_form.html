@@ -33,6 +33,56 @@
     .note{font-size:.85em;color:#666}
     .grid{display:grid;gap:10px}
     @media (max-width:768px){ table{font-size:.85em} }
+
+   /* ===== Header flex para mantener alineación ===== */
+   .app-header {
+     position: relative;
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     margin: 10px 20px;
+   }
+
+   /* Título */
+   .app-header h1 {
+     margin: 0;
+     color: #000;
+     font-size: 1.8em;
+     font-weight: bold;
+   }
+
+   /* Imagen superior derecha */
+   .app-logo {
+     position: absolute;
+     top: 0;              /* pegado arriba */
+     right: 0;            /* pegado a la derecha */
+     margin: 10px 25px;   /* separación sutil del borde */
+     height: 45px;        /* tamaño ajustado tipo “recuadro amarillo” */
+     width: auto;
+     opacity: 0.9;
+     object-fit: contain;
+     filter: saturate(0.9);
+     transition: opacity 0.3s ease;
+   }
+
+   .app-logo:hover {
+     opacity: 1;
+   }
+
+   @media (max-width: 768px) {
+    .app-logo {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin: 10px 25px;
+    height: 48px;       /* antes 45px → aumentado 7% */
+    width: auto;
+    opacity: 0.9;
+    object-fit: contain;
+    filter: saturate(0.9);
+    transition: opacity 0.3s ease;
+   }
+
   </style>
 </head>
 <body>
@@ -40,7 +90,15 @@
     <a href="/carga">← Volver a Carga</a> &nbsp; / &nbsp; <strong>{{ tipo|capitalize }}</strong>
   </div>
 
-  <h1>Carga – {{ tipo|capitalize }}</h1>
+  <!-- Header con título y logo -->
+<div class="app-header">
+  <h1>Buscador de POP</h1>
+  <img
+    class="app-logo"
+    src="{{ url_for('static', path='Imagen_olitel_Entel.png') }}"
+    alt="Olitel Entel"
+  />
+</div>
 
   {% if error %}
     <div class="error"><strong>Error:</strong> {{ error }}</div>

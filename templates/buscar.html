@@ -5,8 +5,31 @@
   <title>Buscador POP</title>
 
   <style>
+    /* ===== Logo fijo arriba-derecha (no altera el layout) ===== */
+    .app-logo{
+      position: fixed;      /* fuera del flujo */
+      top: 10px;
+      right: 24px;
+      height: 48px;         /* tamaño visible (≈ +7% sobre 45px) */
+      width: auto;
+      opacity: 0.95;
+      object-fit: contain;
+      z-index: 1000;        /* por encima del contenido */
+      pointer-events: none; /* no bloquea clics */
+    }
+    @media (max-width: 768px){
+      .app-logo{ height: 42px; top: 8px; right: 12px; }
+    }
+
     /* ===== Base ===== */
-    body{font-family:Arial,sans-serif;background:#f5f6fa;color:#2d3436;margin-left:1cm;margin-right:auto;text-align:left}
+    body{
+      font-family: Arial, sans-serif;
+      background:#f5f6fa;
+      color:#2d3436;
+      margin-left:1cm;
+      margin-right:auto;
+      text-align:left;
+    }
     h1{color:#0984e3;font-size:1.5em;margin:20px 0}
     form{margin:10px 0 20px;text-align:left}
     form label{font-size:.9em;font-weight:bold}
@@ -35,7 +58,6 @@
     .tabla td{
       padding:6px 10px;border:1px solid #ddd;
       vertical-align:top;text-align:left;
-      /* truncado por defecto para todas las tablas */
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px
     }
     .tabla tr:nth-child(even) td{background:#f9f9f9}
@@ -50,18 +72,16 @@
     .collapsible:hover{background:#74b9ff}
     .content{display:none;margin-bottom:20px}
 
-    /* ===== SOLO Proyecto RANCO ===== */
-    .tabla-ranco{table-layout:fixed;width:100%}
+    /* ===== SOLO Proyecto RANCO (una fila; scroll horizontal) ===== */
+    .tabla-ranco{ table-layout:auto; width:auto; min-width:100% }
     .tabla-ranco th,.tabla-ranco td{
-      /* anula truncado: permite múltiples líneas y cortes amigables */
-      white-space:normal !important;
+      white-space:nowrap !important;
       overflow:visible;
-      text-overflow:clip;
+      text-overflow:initial;
       max-width:none;
-      word-break:break-word;
+      word-break:normal;
     }
-    /* CATEGORIA 2 = 5ta columna (ajusta ancho si quieres) */
-    .tabla-ranco th:nth-child(5), .tabla-ranco td:nth-child(5){width:340px}
+    .tabla-ranco th:nth-child(5), .tabla-ranco td:nth-child(5){ width:auto }
 
     /* ===== Responsive ===== */
     @media (max-width:768px){
@@ -81,6 +101,9 @@
 </head>
 
 <body>
+  <!-- Logo fijo arriba-derecha -->
+  <img class="app-logo" src="{{ url_for('static', path='Imagen_olitel_Entel.png') }}" alt="Olitel Entel">
+
   <h1>Buscador de POP</h1>
 
   <form method="get" action="/buscar">
@@ -207,8 +230,8 @@
       </a>
     </div>
     <div style="margin:8px 0 12px;">
-    <a href="/carga" style="background:#0984e3;color:#fff;padding:8px 12px;border-radius:6px;text-decoration:none;">⚙️ Carga Bases y Export</a>
-  </div>
+      <a href="/carga" style="background:#0984e3;color:#fff;padding:8px 12px;border-radius:6px;text-decoration:none;">⚙️ Carga Bases y Export</a>
+    </div>
   {% endif %}
 </body>
 </html>

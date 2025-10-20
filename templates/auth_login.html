@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <style>
+    body{
+      font-family:Arial;
+      background:#f5f6fa;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:100vh;
+      margin:0
+    }
+    .card{
+      background:#fff;
+      padding:20px;
+      border-radius:8px;
+      box-shadow:0 2px 10px rgba(0,0,0,.08);
+      width:320px
+    }
+    h3{margin:0 0 12px}
+    input,button{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:1px solid #c9d6ff}
+    button{background:#0984e3;color:#fff;border:none;cursor:pointer}
+    .error{color:#c62828;margin:6px 0}
+    a{font-size:.9em}
+
+    /* ===== Logo fijo esquina superior derecha ===== */
+    .app-logo{
+      position:fixed;   /* fijo a la ventana */
+      top:10px;
+      right:20px;
+      height:45px;      /* tamaño tipo “recuadro amarillo” */
+      width:auto;
+      opacity:0.9;
+      object-fit:contain;
+      filter:saturate(0.9);
+      transition:opacity .3s ease;
+      z-index:1000;     /* por encima de la card */
+    }
+    .app-logo:hover{opacity:1}
+
+    @media (max-width:768px){
+      .app-logo{ height:40px; right:14px; top:8px; }
+    } /* ← cerramos el media */
+  </style>
+</head>
+<body>
+
+  <!-- Logo arriba-derecha -->
+  <img
+    class="app-logo"
+    src="{{ url_for('static', path='Imagen_olitel_Entel.png') }}"
+    alt="Olitel Entel"
+  />
+
+  <div class="card">
+    <h3>Acceso</h3>
+    {% if error %}<div class="error">{{error}}</div>{% endif %}
+    <form method="post" action="/auth/login">
+      <input type="hidden" name="next" value="{{ next or '/buscar' }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="email" name="email" placeholder="Login" required>
+      <input type="password" name="password" placeholder="Clave" required>
+      <button type="submit">ACCEDER</button>
+    </form>
+    <p><a href="/auth/forgot">Recuperar contraseña</a> · <a href="/auth/register">Registrarse</a></p>
+  </div>
+
+</body>
+</html>
