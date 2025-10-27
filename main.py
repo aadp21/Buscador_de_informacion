@@ -43,7 +43,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SECRET_KEY", "dev-secret-change-me"),
     session_cookie="bi_session",
-    https_only=True,   # True en Render
+    https_only=False,   # True en Render
     same_site="lax",
     max_age=1800,       # 30 min
 )
@@ -116,7 +116,8 @@ security = HTTPBasic()
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 UPLOAD_USERS = os.getenv(
-    "UPLOAD_USERS","vrossel@olitel.cl:Vladimir2025; prodriguez@olitel.cl:Pablo2025; gmunoz@olitel.cl:Galo2025; adelgado@olitel.cl:123456789"
+    "UPLOAD_USERS",
+    "vrossel@olitel.cl:Vladimir2025; prodriguez@olitel.cl:Pablo2025; gmunoz@olitel.cl:Galo2025; adelgado@olitel.cl:123456789"
 )
 
 def _parse_user_list(raw: str):
@@ -833,6 +834,34 @@ async def carga_upload(
                 await asyncio.sleep(2)
 
             invalidate_cache(touched)
+
+            # === Notificación por correo ===
+            try:
+                from time import strftime, localtime
+                ts = strftime("%Y-%m-%d %H:%M", localtime())
+
+                resumen_html = f"""
+                <h2>Carga completada – {tipo.upper()}</h2>
+                <p><strong>Usuario:</strong> {user}</p>
+                <p><strong>Fecha/Hora:</strong> {ts}</p>
+                <p><strong>Resultado:</strong></p>
+                <pre style="font-size:13px;line-height:1.35;background:#f7f7f7;padding:10px;border-radius:6px">
+            {ctx.get("result")}
+                </pre>
+                """
+
+                # Si tienes el correo del usuario logueado por sesión:
+                # recipients = [user] + (NOTIFY_EMAILS or [])
+                recipients = None  # usa NOTIFY_EMAILS del entorno
+
+                send_mail(
+                    subject=f"[Carga] {tipo.upper()} – OK – {ts}",
+                    html_body=resumen_html,
+                    to_addrs=recipients
+                )
+            except Exception as e:
+                print("⚠️ No se pudo enviar el mail de notificación:", repr(e))
+
             ctx["result"] = write_summary
 
             # (opcional) Email resumen
@@ -904,6 +933,34 @@ async def carga_upload(
             try:
                 escribir_hoja_stream(SHEET_ID, target, iter_rows(), batch_rows=800)
                 invalidate_cache([target])
+
+                # === Notificación por correo ===
+                try:
+                    from time import strftime, localtime
+                    ts = strftime("%Y-%m-%d %H:%M", localtime())
+
+                    resumen_html = f"""
+                    <h2>Carga completada – {tipo.upper()}</h2>
+                    <p><strong>Usuario:</strong> {user}</p>
+                    <p><strong>Fecha/Hora:</strong> {ts}</p>
+                    <p><strong>Resultado:</strong></p>
+                    <pre style="font-size:13px;line-height:1.35;background:#f7f7f7;padding:10px;border-radius:6px">
+                {ctx.get("result")}
+                    </pre>
+                    """
+
+                    # Si tienes el correo del usuario logueado por sesión:
+                    # recipients = [user] + (NOTIFY_EMAILS or [])
+                    recipients = None  # usa NOTIFY_EMAILS del entorno
+
+                    send_mail(
+                        subject=f"[Carga] {tipo.upper()} – OK – {ts}",
+                        html_body=resumen_html,
+                        to_addrs=recipients
+                    )
+                except Exception as e:
+                    print("⚠️ No se pudo enviar el mail de notificación:", repr(e))
+
                 ctx["result"] = {target: "Actualizado ✅ (stream)"}
                 if token:
                     TEMP_UPLOADS.pop(token, None)
