@@ -470,20 +470,21 @@ def buscar_pop(
                 key=lambda r: (r.get(site_key) in ("", None), _natural_key(r.get(site_key, "")))
             )
 
+        # ✅ PROPUESTO (usa caché en memoria)
         # Export 5G
-        df_5g = leer_filas_por_pop(SHEET_ID, "Export_5G", codigo)
+        df_5g = get_data("Export_5G")
         export_5g_result = filtrar_por_pop(df_5g, codigo, excluir=["nRSectorCarrierRef"])
 
         # Export 4G
-        df_4g = leer_filas_por_pop(SHEET_ID, "Export_4G", codigo)
+        df_4g = get_data("Export_4G")
         export_4g_result = filtrar_por_pop(df_4g, codigo, excluir=["latitud", "longitud", "Región"])
 
         # Export 3G
-        df_3g = leer_filas_por_pop(SHEET_ID, "Export_3G", codigo)
+        df_3g = get_data("Export_3G")
         export_3g_result = filtrar_por_pop(df_3g, codigo, excluir=["latitude", "longitude", "Región"])
 
         # Export 2G
-        df_2g = leer_filas_por_pop(SHEET_ID, "Export_2G", codigo)
+        df_2g = get_data("Export_2G")
         export_2g_result = filtrar_por_pop(df_2g, codigo, excluir=["Latitude", "Longitude"])
 
     except Exception as e:
@@ -666,26 +667,29 @@ def exportar_excel(codigo: str):
         cols_ok = [c for c in columnas_dir if c in df_dir.columns]
         dir_rows = df_dir.loc[mask, cols_ok].fillna("").to_dict(orient="records")
 
-    # Otras hojas
+    # Otras hojas (todas desde caché)
     proyecto_ranco_rows = filtrar_por_pop(get_data("Proyecto_RANCO"), codigo)
     hardware_rows = filtrar_por_pop(get_data("Base Hardware"), codigo)
-    # --- ordenar Base Hardware por SITE ID también en la exportación ---
+
+    # Ordenar Base Hardware por SITE ID
     site_key = _find_key_ci(hardware_rows, "SITE ID")
     if site_key:
         hardware_rows.sort(
             key=lambda r: (r.get(site_key) in ("", None), _natural_key(r.get(site_key, "")))
         )
-    export_5g_rows = filtrar_por_pop(leer_filas_por_pop(SHEET_ID, "Export_5G", codigo), codigo, excluir=["nRSectorCarrierRef"])
-    export_4g_rows = filtrar_por_pop(leer_filas_por_pop(SHEET_ID, "Export_4G", codigo), codigo, excluir=["latitud", "longitud", "Región"])
-    export_3g_rows = filtrar_por_pop(leer_filas_por_pop(SHEET_ID, "Export_3G", codigo), codigo, excluir=["latitude", "longitude", "Región"])
-    export_2g_rows = filtrar_por_pop(leer_filas_por_pop(SHEET_ID, "Export_2G", codigo), codigo, excluir=["Latitude", "Longitude"])
+
+    # Export (usa caché en memoria)
+    export_5g_rows = filtrar_por_pop(get_data("Export_5G"), codigo, excluir=["nRSectorCarrierRef"])
+    export_4g_rows = filtrar_por_pop(get_data("Export_4G"), codigo, excluir=["latitud", "longitud", "Región"])
+    export_3g_rows = filtrar_por_pop(get_data("Export_3G"), codigo, excluir=["latitude", "longitude", "Región"])
+    export_2g_rows = filtrar_por_pop(get_data("Export_2G"), codigo, excluir=["Latitude", "Longitude"])
 
     # Excel multi-hoja
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_comp = _comparativo_df(bases_rows, dir_rows, prefer_bases=columnas_bases, prefer_dir=columnas_dir)
         if df_comp.empty:
-            df_comp = pd.DataFrame(columns=["Campo","Bases POP","Directorio"])
+            df_comp = pd.DataFrame(columns=["Campo", "Bases POP", "Directorio"])
         df_comp.to_excel(writer, index=False, sheet_name="Bases POP vs Directorio")
 
         _rows_to_df(proyecto_ranco_rows).to_excel(writer, index=False, sheet_name="Proyecto RANCO")
@@ -696,7 +700,8 @@ def exportar_excel(codigo: str):
         _rows_to_df(export_2g_rows).to_excel(writer, index=False, sheet_name="Export 2G")
 
         wb = writer.book
-        for name in ["Bases POP vs Directorio","Proyecto RANCO","Base Hardware","Export 5G","Export 4G","Export 3G","Export 2G"]:
+        for name in ["Bases POP vs Directorio", "Proyecto RANCO", "Base Hardware", "Export 5G", "Export 4G",
+                     "Export 3G", "Export 2G"]:
             ws = wb[name]
             if ws.max_row == 1 and ws.max_column == 1 and ws["A1"].value is None:
                 ws["A1"] = "Sin datos para este POP"
@@ -709,7 +714,6 @@ def exportar_excel(codigo: str):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename=\"{filename}\"'}
     )
-
 
 
 
@@ -836,6 +840,7 @@ async def carga_upload(
             invalidate_cache(touched)
 
             # === Notificación por correo ===
+
             try:
                 from time import strftime, localtime
                 ts = strftime("%Y-%m-%d %H:%M", localtime())
